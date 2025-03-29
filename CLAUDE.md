@@ -30,9 +30,11 @@
 - `GET /health` - Health check endpoint
 - `GET /test` - Test endpoint with mock data
 - `GET /test-meetings` - Test endpoint with sample meeting creation/cancellation requests
+- `GET /test-form-submission` - Test endpoint with sample form webhook payload
 - `GET /meeting-rooms?page=1&page_size=20` - Get meeting rooms with pagination
 - `POST /meetings` - Create a new meeting
 - `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting
+- `POST /webhook/form-submission` - Webhook endpoint for form submissions to create meetings
 
 ## Required Environment Variables
 ```
@@ -42,6 +44,10 @@ TENCENT_MEETING_SECRET_ID=your_secret_id
 TENCENT_MEETING_SECRET_KEY=your_secret_key
 TENCENT_MEETING_SDK_ID=your_sdk_id
 TENCENT_MEETING_OPERATOR_ID=your_operator_id
+
+# Form field mappings (required)
+FORM_USER_FIELD_NAME=user_field_name
+FORM_DEPT_FIELD_NAME=department_field_name
 ```
 
 ## Code Style Guidelines
@@ -91,3 +97,46 @@ When connecting to form services, make sure to:
 2. Use structured error handling
 3. Add validation for incoming form data
 4. Ensure proper timezone handling in scheduling APIs
+
+### Form Webhook Structure
+The webhook endpoint (`/webhook/form-submission`) expects the following JSON structure:
+
+```json
+{
+  "form": "form_id",
+  "form_name": "Meeting Room Reservation",
+  "entry": {
+    "token": "token123",
+    "field_1": [
+      {
+        "item_name": "Conference Room A",
+        "scheduled_label": "2025-03-30 09:00-10:00",
+        "number": 1,
+        "scheduled_at": "2025-03-30T01:00:00.000Z",
+        "api_code": "CODE1"
+      }
+    ],
+    "field_8": "Meeting Subject",
+    "user_field_name": "User Name",
+    "department_field_name": "Department",
+    "reservation_status_fsf_field": "Reserved"
+  }
+}
+```
+
+The webhook processes this data and creates a meeting in Tencent Meeting with:
+- Meeting subject from field_8
+- Meeting time from scheduled_at (in UTC)
+- Meeting duration calculated from the time range in scheduled_label (e.g., "09:00-10:00")
+- Meeting creator using the operator_id from environment variables
+- Meeting location as the item_name and department
+- Meeting instance ID set to 32
+- Meeting type set to 0 (scheduled meeting)
+
+For multiple time slots in a single form submission:
+- Groups time slots into mergeable sets based on continuity and room
+- Creates meetings for each mergeable group:
+  - Merged meetings when slots are contiguous in the same room
+  - Individual meetings for non-mergeable slots
+- Processes all available time slots, not just the first group
+- Returns a detailed response with information about all created meetings

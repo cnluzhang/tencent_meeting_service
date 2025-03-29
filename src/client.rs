@@ -24,8 +24,7 @@ impl fmt::Display for TencentApiError {
 
 impl Error for TencentApiError {}
 
-// Define type alias for our result
-pub type TencentResult<T> = Result<T, reqwest::Error>;
+// We use reqwest::Error directly for errors
 
 // Meeting room response types
 #[derive(Debug, Serialize, Deserialize)]
@@ -279,6 +278,11 @@ impl TencentMeetingClient {
             operator_id: env::var("TENCENT_MEETING_OPERATOR_ID")
                 .unwrap_or_else(|_| "admin".to_string()),
         }
+    }
+    
+    /// Get the operator ID configured for this client
+    pub fn get_operator_id(&self) -> &str {
+        &self.operator_id
     }
 
     /// Generate signature for Tencent Meeting API requests
