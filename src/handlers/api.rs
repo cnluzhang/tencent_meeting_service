@@ -25,6 +25,7 @@ pub struct AppState {
     pub user_field_name: String, // Reserved for future use
     pub dept_field_name: String,
     pub database: Arc<DatabaseService>,
+    pub default_room_id: String,
 }
 
 // List meeting rooms endpoint
@@ -160,38 +161,53 @@ pub async fn handle_form_submission(
             form_submission.entry.token
         );
 
-        // Look up meeting ID in database and cancel meeting
+        // Look up meeting ID and room ID in database 
         match state.database.cancel_meeting(&form_submission.entry.token) {
-            Ok(Some(meeting_id)) => {
-                info!("Found meeting to cancel with ID: {}", meeting_id);
+            Ok(Some((meeting_id, room_id))) => {
+                info!("Found meeting to cancel with ID: {} and room ID: {}", meeting_id, room_id);
 
-                // Create cancellation request
-                let cancel_request = CancelMeetingRequest {
-                    userid: state.client.get_operator_id().to_string(),
-                    instanceid: 32,
-                    reason_code: 1, // Cancellation reason code
-                    meeting_type: None,
-                    sub_meeting_id: None,
-                    reason_detail: Some("Form submission cancelled".to_string()),
+                // Step 1: Release the meeting room
+                let release_request = ReleaseRoomsRequest {
+                    operator_id: state.client.get_operator_id().to_string(),
+                    operator_id_type: 1,
+                    meeting_room_id_list: vec![room_id.clone()],
                 };
 
-                // Call the Tencent Meeting API to cancel the meeting
-                match state
-                    .client
-                    .cancel_meeting(&meeting_id, &cancel_request)
-                    .await
-                {
+                // Call the Tencent Meeting API to release the room
+                match state.client.release_rooms(&meeting_id, &release_request).await {
                     Ok(_) => {
-                        info!("Successfully cancelled meeting with ID: {}", meeting_id);
-                        return Ok(Json(WebhookResponse {
-                            success: true,
-                            message: format!("Meeting {} cancelled successfully", meeting_id),
-                            meetings_count: 0,
-                            meetings: Vec::new(),
-                        }));
+                        info!("Successfully released room {} for meeting {}", room_id, meeting_id);
+                        
+                        // Step 2: Cancel the meeting
+                        let cancel_request = CancelMeetingRequest {
+                            userid: state.client.get_operator_id().to_string(),
+                            instanceid: 32,
+                            reason_code: 1, // Cancellation reason code
+                            meeting_type: None,
+                            sub_meeting_id: None,
+                            reason_detail: Some("Form submission cancelled".to_string()),
+                        };
+
+                        // Call the Tencent Meeting API to cancel the meeting
+                        match state.client.cancel_meeting(&meeting_id, &cancel_request).await {
+                            Ok(_) => {
+                                info!("Successfully cancelled meeting with ID: {}", meeting_id);
+                                return Ok(Json(WebhookResponse {
+                                    success: true,
+                                    message: format!("Meeting {} cancelled and room {} released successfully", 
+                                        meeting_id, room_id),
+                                    meetings_count: 0,
+                                    meetings: Vec::new(),
+                                }));
+                            }
+                            Err(err) => {
+                                error!("Failed to cancel meeting: {}", err);
+                                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                            }
+                        }
                     }
                     Err(err) => {
-                        error!("Failed to cancel meeting: {}", err);
+                        error!("Failed to release room: {}", err);
                         return Err(StatusCode::INTERNAL_SERVER_ERROR);
                     }
                 }
@@ -266,13 +282,34 @@ pub async fn handle_form_submission(
 
                 // Store in database if we have a meeting ID
                 if let Some(meeting_id) = &result.meeting_id {
-                    if let Err(e) = state.database.store_meeting(
-                        &form_submission,
-                        meeting_id,
-                        &result.room_name,
-                    ) {
-                        error!("Failed to store meeting record: {}", e);
-                        // Continue processing even if database storage fails
+                    // Step 2: Book the meeting room
+                    let book_request = BookRoomsRequest {
+                        operator_id: state.client.get_operator_id().to_string(),
+                        operator_id_type: 1,
+                        meeting_room_id_list: vec![state.default_room_id.clone()],
+                        subject_visible: Some(true),
+                    };
+                    
+                    match state.client.book_rooms(meeting_id, &book_request).await {
+                        Ok(_) => {
+                            info!("Successfully booked room {} for meeting {}", 
+                                state.default_room_id, meeting_id);
+                            
+                            // Store meeting info in database with room ID
+                            if let Err(e) = state.database.store_meeting(
+                                &form_submission,
+                                meeting_id,
+                                &result.room_name,
+                                &state.default_room_id,
+                            ) {
+                                error!("Failed to store meeting record: {}", e);
+                                // Continue processing even if database storage fails
+                            }
+                        }
+                        Err(err) => {
+                            error!("Failed to book room for meeting: {}", err);
+                            // Continue with other operations, don't fail completely
+                        }
                     }
                 }
 
@@ -311,13 +348,34 @@ pub async fn handle_form_submission(
 
                             // Store in database if we have a meeting ID
                             if let Some(meeting_id) = &result.meeting_id {
-                                if let Err(e) = state.database.store_meeting(
-                                    &form_submission,
-                                    meeting_id,
-                                    &result.room_name,
-                                ) {
-                                    error!("Failed to store meeting record: {}", e);
-                                    // Continue processing even if database storage fails
+                                // Step 2: Book the meeting room
+                                let book_request = BookRoomsRequest {
+                                    operator_id: state.client.get_operator_id().to_string(),
+                                    operator_id_type: 1,
+                                    meeting_room_id_list: vec![state.default_room_id.clone()],
+                                    subject_visible: Some(true),
+                                };
+                                
+                                match state.client.book_rooms(meeting_id, &book_request).await {
+                                    Ok(_) => {
+                                        info!("Successfully booked room {} for meeting {}", 
+                                            state.default_room_id, meeting_id);
+                                        
+                                        // Store meeting info in database with room ID
+                                        if let Err(e) = state.database.store_meeting(
+                                            &form_submission,
+                                            meeting_id,
+                                            &result.room_name,
+                                            &state.default_room_id,
+                                        ) {
+                                            error!("Failed to store meeting record: {}", e);
+                                            // Continue processing even if database storage fails
+                                        }
+                                    }
+                                    Err(err) => {
+                                        error!("Failed to book room for meeting: {}", err);
+                                        // Continue with other operations, don't fail completely
+                                    }
                                 }
                             }
 
@@ -351,13 +409,34 @@ pub async fn handle_form_submission(
 
                             // Store in database if we have a meeting ID
                             if let Some(meeting_id) = &result.meeting_id {
-                                if let Err(e) = state.database.store_meeting(
-                                    &form_submission,
-                                    meeting_id,
-                                    &result.room_name,
-                                ) {
-                                    error!("Failed to store meeting record: {}", e);
-                                    // Continue processing even if database storage fails
+                                // Step 2: Book the meeting room
+                                let book_request = BookRoomsRequest {
+                                    operator_id: state.client.get_operator_id().to_string(),
+                                    operator_id_type: 1,
+                                    meeting_room_id_list: vec![state.default_room_id.clone()],
+                                    subject_visible: Some(true),
+                                };
+                                
+                                match state.client.book_rooms(meeting_id, &book_request).await {
+                                    Ok(_) => {
+                                        info!("Successfully booked room {} for meeting {}", 
+                                            state.default_room_id, meeting_id);
+                                        
+                                        // Store meeting info in database with room ID
+                                        if let Err(e) = state.database.store_meeting(
+                                            &form_submission,
+                                            meeting_id,
+                                            &result.room_name,
+                                            &state.default_room_id,
+                                        ) {
+                                            error!("Failed to store meeting record: {}", e);
+                                            // Continue processing even if database storage fails
+                                        }
+                                    }
+                                    Err(err) => {
+                                        error!("Failed to book room for meeting: {}", err);
+                                        // Continue with other operations, don't fail completely
+                                    }
                                 }
                             }
 

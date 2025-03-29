@@ -44,8 +44,12 @@ async fn main() {
 
     let dept_field_name =
         env::var("FORM_DEPT_FIELD_NAME").expect("FORM_DEPT_FIELD_NAME must be set in environment");
+        
+    // Load the default meeting room ID
+    let default_room_id =
+        env::var("DEFAULT_MEETING_ROOM_ID").expect("DEFAULT_MEETING_ROOM_ID must be set in environment");
 
-    info!("Using form field mappings from environment variables");
+    info!("Using form field mappings and default room ID from environment variables");
 
     // Initialize the database service
     let database = create_database_service();
@@ -57,6 +61,7 @@ async fn main() {
         user_field_name,
         dept_field_name,
         database,
+        default_room_id,
     });
 
     // Create router with all routes

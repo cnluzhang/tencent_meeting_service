@@ -23,6 +23,7 @@ pub struct MeetingRecord {
 
     // Tencent Meeting data
     pub meeting_id: String,
+    pub room_id: String,      // Room ID used for booking
     pub created_at: String,   // ISO format
     pub cancelled_at: String, // ISO format (empty if not cancelled)
 }
@@ -56,6 +57,7 @@ impl DatabaseService {
                 "scheduled_label",
                 "status",
                 "meeting_id",
+                "room_id",
                 "created_at",
                 "cancelled_at",
             ]) {
@@ -81,6 +83,7 @@ impl DatabaseService {
         form: &FormSubmission,
         meeting_id: &str,
         room_name: &str,
+        room_id: &str,
     ) -> Result<(), String> {
         // Get current time in UTC
         let now = Utc::now();
@@ -106,6 +109,7 @@ impl DatabaseService {
                 .unwrap_or_default(),
             status: form.entry.reservation_status_fsf_field.clone(),
             meeting_id: meeting_id.to_string(),
+            room_id: room_id.to_string(),
             created_at: now.to_rfc3339(),
             cancelled_at: "".to_string(),
         };
@@ -114,7 +118,7 @@ impl DatabaseService {
     }
 
     // Update meeting status to cancelled
-    pub fn cancel_meeting(&self, entry_token: &str) -> Result<Option<String>, String> {
+    pub fn cancel_meeting(&self, entry_token: &str) -> Result<Option<(String, String)>, String> {
         let _lock = self
             .file_mutex
             .lock()
@@ -133,6 +137,7 @@ impl DatabaseService {
 
         let mut records: Vec<StringRecord> = Vec::new();
         let mut meeting_id = None;
+        let mut room_id = None;
 
         // Find the record with matching token and copy all records
         for result in reader.records() {
@@ -143,8 +148,9 @@ impl DatabaseService {
                 // Add to records with updated status
                 let mut updated = record.clone();
 
-                // Get meeting_id for cancellation
+                // Get meeting_id and room_id for cancellation
                 meeting_id = record.get(8).map(String::from);
+                room_id = record.get(9).map(String::from);
 
                 // Update the record fields in-place
                 if let Some(meeting_id_str) = &meeting_id {
@@ -153,7 +159,7 @@ impl DatabaseService {
                     // Build a new record with updated status and cancelled_at time
                     let mut updated_vec: Vec<String> = record.iter().map(String::from).collect();
                     updated_vec[7] = "Cancelled".to_string(); // Update status
-                    updated_vec[10] = now.clone(); // Update cancelled_at
+                    updated_vec[11] = now.clone(); // Update cancelled_at
 
                     updated = StringRecord::from(updated_vec);
 
@@ -170,7 +176,7 @@ impl DatabaseService {
         }
 
         // If no matching record found
-        if meeting_id.is_none() {
+        if meeting_id.is_none() || room_id.is_none() {
             warn!("No active meeting found for token: {}", entry_token);
             return Ok(None);
         }
@@ -200,7 +206,8 @@ impl DatabaseService {
             .flush()
             .map_err(|e| format!("Failed to flush writer: {}", e))?;
 
-        Ok(meeting_id)
+        // Return both the meeting_id and room_id
+        Ok(Some((meeting_id.unwrap(), room_id.unwrap())))
     }
 
     // Find a meeting by entry token
@@ -259,7 +266,7 @@ impl DatabaseService {
         &self,
         record: &StringRecord,
     ) -> Result<MeetingRecord, String> {
-        if record.len() < 11 {
+        if record.len() < 12 {
             return Err(format!("Invalid record length: {}", record.len()));
         }
 
@@ -273,8 +280,9 @@ impl DatabaseService {
             scheduled_label: record.get(6).unwrap_or_default().to_string(),
             status: record.get(7).unwrap_or_default().to_string(),
             meeting_id: record.get(8).unwrap_or_default().to_string(),
-            created_at: record.get(9).unwrap_or_default().to_string(),
-            cancelled_at: record.get(10).unwrap_or_default().to_string(),
+            room_id: record.get(9).unwrap_or_default().to_string(),
+            created_at: record.get(10).unwrap_or_default().to_string(),
+            cancelled_at: record.get(11).unwrap_or_default().to_string(),
         })
     }
 

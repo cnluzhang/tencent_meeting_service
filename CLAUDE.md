@@ -50,6 +50,9 @@ TENCENT_MEETING_OPERATOR_ID=your_operator_id
 # Form field mappings (required)
 FORM_USER_FIELD_NAME=user_field_name
 FORM_DEPT_FIELD_NAME=department_field_name
+
+# Room booking (required)
+DEFAULT_MEETING_ROOM_ID=your_default_room_id
 ```
 
 ## Code Organization
@@ -120,6 +123,8 @@ When connecting to form services, make sure to:
 ### Form Webhook Structure
 The webhook endpoint (`/webhook/form-submission`) expects the following JSON structure:
 
+For meeting creation:
+
 ```json
 {
   "form": "form_id",
@@ -138,19 +143,57 @@ The webhook endpoint (`/webhook/form-submission`) expects the following JSON str
     "field_8": "Meeting Subject",
     "user_field_name": "User Name",
     "department_field_name": "Department",
-    "reservation_status_fsf_field": "Reserved"
+    "reservation_status_fsf_field": "已预约"
   }
 }
 ```
 
-The webhook processes this data and creates a meeting in Tencent Meeting with:
-- Meeting subject from field_8
-- Meeting time from scheduled_at (in UTC)
-- Meeting duration calculated from the time range in scheduled_label (e.g., "09:00-10:00")
-- Meeting creator using the operator_id from environment variables
-- Meeting location as the item_name and department
-- Meeting instance ID set to 32
-- Meeting type set to 0 (scheduled meeting)
+For meeting cancellation (uses the same token to identify the meeting):
+
+```json
+{
+  "form": "form_id",
+  "form_name": "Meeting Room Reservation",
+  "entry": {
+    "token": "token123",
+    "field_1": [
+      {
+        "item_name": "Conference Room A",
+        "scheduled_label": "2025-03-30 09:00-10:00",
+        "number": 1,
+        "scheduled_at": "2025-03-30T01:00:00.000Z",
+        "api_code": "CODE1"
+      }
+    ],
+    "field_8": "Meeting Subject",
+    "user_field_name": "User Name",
+    "department_field_name": "Department",
+    "reservation_status_fsf_field": "已取消"
+  }
+}
+```
+
+The webhook processes reservations ("已预约") as follows:
+1. Creates a meeting in Tencent Meeting with:
+   - Meeting subject from field_8
+   - Meeting time from scheduled_at (in UTC)
+   - Meeting duration calculated from the time range in scheduled_label (e.g., "09:00-10:00")
+   - Meeting creator using the operator_id from environment variables
+   - Meeting location as the item_name and department
+   - Meeting instance ID set to 32
+   - Meeting type set to 0 (scheduled meeting)
+2. Books the meeting room specified in DEFAULT_MEETING_ROOM_ID environment variable
+3. Stores the meeting details in the database, including:
+   - Form entry token (used to identify the meeting later)
+   - Meeting ID returned from Tencent Meeting API
+   - Room ID used for booking
+   - Current status ("Reserved")
+
+The webhook processes cancellations ("已取消") as follows:
+1. Looks up the meeting in the database using the form entry token
+2. First releases the meeting room using the room ID
+3. Then cancels the meeting using the meeting ID
+4. Updates the meeting status in the database to "Cancelled"
 
 For multiple time slots in a single form submission:
 - Groups time slots into mergeable sets based on continuity and room

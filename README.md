@@ -69,6 +69,9 @@ TENCENT_MEETING_OPERATOR_ID=your_operator_id
 FORM_USER_FIELD_NAME=user_field_name
 FORM_DEPT_FIELD_NAME=department_field_name
 
+# Room booking (required)
+DEFAULT_MEETING_ROOM_ID=your_default_room_id
+
 # Optional settings
 TENCENT_MEETING_API_ENDPOINT=https://api.meeting.qq.com
 RUST_LOG=info
@@ -200,17 +203,28 @@ The service processes this data as follows:
 - The operator_id from environment variables is used as the meeting creator/host
 - Department and room name are used for the meeting location
 - Meeting instance ID is set to 32 (as required by the API)
+- After meeting creation, the meeting room (specified in DEFAULT_MEETING_ROOM_ID) is booked automatically
 
 When multiple time slots are submitted in a single form:
 1. The service attempts to find all mergeable groups of time slots
 2. For each mergeable group:
    - If the group has multiple time slots that are contiguous and in the same room, they are merged into a single meeting
    - If the group has only one time slot, a single meeting is created for it
-3. The response includes details for all created meetings, indicating:
+3. For each created meeting, the service:
+   - Books the default meeting room (from DEFAULT_MEETING_ROOM_ID)
+   - Stores the meeting ID and room ID in the database for future reference
+4. The response includes details for all created meetings, indicating:
    - Which time slots were merged
    - Which room was used for each meeting
    - Success/failure status for each meeting
    - Meeting IDs for successfully created meetings
+
+For meeting cancellation:
+1. When a form submission with status "已取消" (Cancelled) is received
+2. The system looks up the meeting and room IDs from the database using the entry token
+3. First, it releases the booked meeting room
+4. Then it cancels the meeting
+5. Finally, it updates the database with the cancellation status
 
 You can test this integration using the `/test-form-submission` endpoint that provides a sample payload.
 
