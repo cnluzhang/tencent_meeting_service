@@ -102,7 +102,7 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
     for slot in slots {
         room_groups
             .entry(slot.item_name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(slot.clone());
     }
 
@@ -116,18 +116,18 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
         // Find continuous groups
         let mut current_group = vec![room_slots[0].clone()];
 
-        for i in 1..room_slots.len() {
+        for slot in room_slots.iter().skip(1) {
             let last_slot = &current_group.last().unwrap();
 
             // If this slot starts exactly when the previous one ends, merge them
-            if last_slot.end_time == room_slots[i].start_time {
-                current_group.push(room_slots[i].clone());
+            if last_slot.end_time == slot.start_time {
+                current_group.push(slot.clone());
             } else {
                 // Otherwise start a new group
                 if !current_group.is_empty() {
                     mergeable_groups.push(current_group);
                 }
-                current_group = vec![room_slots[i].clone()];
+                current_group = vec![slot.clone()];
             }
         }
 

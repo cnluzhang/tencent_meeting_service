@@ -46,7 +46,7 @@ impl DatabaseService {
 
             let mut writer = WriterBuilder::new().has_headers(true).from_writer(file);
 
-            if let Err(e) = writer.write_record(&[
+            if let Err(e) = writer.write_record([
                 "entry_token",
                 "form_id",
                 "form_name",
@@ -286,7 +286,6 @@ impl DatabaseService {
             .map_err(|e| format!("Failed to acquire mutex: {}", e))?;
 
         let file = OpenOptions::new()
-            .write(true)
             .append(true)
             .open(&self.csv_path)
             .map_err(|e| format!("Failed to open database file: {}", e))?;

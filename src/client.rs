@@ -258,6 +258,12 @@ pub struct TencentMeetingClient {
     operator_id: String,
 }
 
+impl Default for TencentMeetingClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TencentMeetingClient {
     /// Create a new Tencent Meeting client from environment variables
     pub fn new() -> Self {

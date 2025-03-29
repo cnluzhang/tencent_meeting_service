@@ -4,7 +4,7 @@ use axum::{
     response::Json,
 };
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::client::{
     CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse, TencentMeetingClient,
@@ -237,7 +237,7 @@ pub async fn handle_form_submission(
             }
             Err(e) => {
                 error!("Failed to create merged meeting: {:?}", e);
-                all_successful = false;
+                // No need to set all_successful since we're returning immediately
                 return Err(e);
             }
         }
@@ -246,87 +246,94 @@ pub async fn handle_form_submission(
         info!("Found {} mergeable groups", mergeable_groups.len());
 
         for (i, group) in mergeable_groups.iter().enumerate() {
-            if group.len() > 1 {
-                // Create a merged meeting for this group
-                info!(
-                    "Creating merged meeting for {} slots in group {}",
-                    group.len(),
-                    i + 1
-                );
-                match create_merged_meeting(
-                    &state.client,
-                    &state.user_field_name,
-                    &state.dept_field_name,
-                    &form_submission,
-                    group,
-                )
-                .await
-                {
-                    Ok(result) => {
-                        all_successful = all_successful && result.success;
+            match group.len().cmp(&1) {
+                std::cmp::Ordering::Greater => {
+                    // Create a merged meeting for this group (more than 1 slot)
+                    info!(
+                        "Creating merged meeting for {} slots in group {}",
+                        group.len(),
+                        i + 1
+                    );
+                    match create_merged_meeting(
+                        &state.client,
+                        &state.user_field_name,
+                        &state.dept_field_name,
+                        &form_submission,
+                        group,
+                    )
+                    .await
+                    {
+                        Ok(result) => {
+                            all_successful = all_successful && result.success;
 
-                        // Store in database if we have a meeting ID
-                        if let Some(meeting_id) = &result.meeting_id {
-                            if let Err(e) = state.database.store_meeting(
-                                &form_submission,
-                                meeting_id,
-                                &result.room_name,
-                            ) {
-                                error!("Failed to store meeting record: {}", e);
-                                // Continue processing even if database storage fails
+                            // Store in database if we have a meeting ID
+                            if let Some(meeting_id) = &result.meeting_id {
+                                if let Err(e) = state.database.store_meeting(
+                                    &form_submission,
+                                    meeting_id,
+                                    &result.room_name,
+                                ) {
+                                    error!("Failed to store meeting record: {}", e);
+                                    // Continue processing even if database storage fails
+                                }
                             }
-                        }
 
-                        meeting_results.push(result);
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to create merged meeting in group {}: {:?}",
-                            i + 1,
-                            e
-                        );
-                        all_successful = false;
-                        // Continue processing other groups even if one fails
+                            meeting_results.push(result);
+                        }
+                        Err(e) => {
+                            error!(
+                                "Failed to create merged meeting in group {}: {:?}",
+                                i + 1,
+                                e
+                            );
+                            all_successful = false;
+                            // Continue processing other groups even if one fails
+                        }
                     }
                 }
-            } else if group.len() == 1 {
-                // Create a single meeting for this slot
-                info!("Creating single meeting for time slot in group {}", i + 1);
-                match create_meeting_with_time_slot(
-                    &state.client,
-                    &state.user_field_name,
-                    &state.dept_field_name,
-                    &form_submission,
-                    &group[0],
-                )
-                .await
-                {
-                    Ok(result) => {
-                        all_successful = all_successful && result.success;
+                std::cmp::Ordering::Equal => {
+                    // Create a single meeting for this slot (exactly 1 slot)
+                    info!("Creating single meeting for time slot in group {}", i + 1);
+                    match create_meeting_with_time_slot(
+                        &state.client,
+                        &state.user_field_name,
+                        &state.dept_field_name,
+                        &form_submission,
+                        &group[0],
+                    )
+                    .await
+                    {
+                        Ok(result) => {
+                            all_successful = all_successful && result.success;
 
-                        // Store in database if we have a meeting ID
-                        if let Some(meeting_id) = &result.meeting_id {
-                            if let Err(e) = state.database.store_meeting(
-                                &form_submission,
-                                meeting_id,
-                                &result.room_name,
-                            ) {
-                                error!("Failed to store meeting record: {}", e);
-                                // Continue processing even if database storage fails
+                            // Store in database if we have a meeting ID
+                            if let Some(meeting_id) = &result.meeting_id {
+                                if let Err(e) = state.database.store_meeting(
+                                    &form_submission,
+                                    meeting_id,
+                                    &result.room_name,
+                                ) {
+                                    error!("Failed to store meeting record: {}", e);
+                                    // Continue processing even if database storage fails
+                                }
                             }
-                        }
 
-                        meeting_results.push(result);
+                            meeting_results.push(result);
+                        }
+                        Err(e) => {
+                            error!(
+                                "Failed to create single meeting in group {}: {:?}",
+                                i + 1,
+                                e
+                            );
+                            all_successful = false;
+                            // Continue processing other groups even if one fails
+                        }
                     }
-                    Err(e) => {
-                        error!(
-                            "Failed to create single meeting in group {}: {:?}",
-                            i + 1,
-                            e
-                        );
-                        all_successful = false;
-                        // Continue processing other groups even if one fails
-                    }
+                }
+                std::cmp::Ordering::Less => {
+                    // This case shouldn't happen as we should never have empty groups
+                    warn!("Found empty meeting group at index {}", i);
                 }
             }
         }
