@@ -29,7 +29,10 @@
 ## API Endpoints
 - `GET /health` - Health check endpoint
 - `GET /test` - Test endpoint with mock data
+- `GET /test-meetings` - Test endpoint with sample meeting creation/cancellation requests
 - `GET /meeting-rooms?page=1&page_size=20` - Get meeting rooms with pagination
+- `POST /meetings` - Create a new meeting
+- `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting
 
 ## Required Environment Variables
 ```

@@ -31,7 +31,10 @@ tencent_meeting_service/
 
 - `GET /health` - Health check endpoint
 - `GET /test` - Test endpoint that returns mock meeting room data
+- `GET /test-meetings` - Test endpoint with sample meeting creation/cancellation requests
 - `GET /meeting-rooms?page=1&page_size=20` - Get meeting rooms with pagination
+- `POST /meetings` - Create a new meeting with Tencent Meeting API
+- `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting
 
 ## Setup
 

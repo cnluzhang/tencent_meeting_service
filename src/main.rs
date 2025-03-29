@@ -2,14 +2,14 @@ mod client;
 mod auth;
 
 use axum::{
-    routing::get,
+    routing::{get, post},
     Router,
-    extract::{Query, State},
+    extract::{Query, State, Path, Json as ExtractJson},
     http::StatusCode,
     response::Json,
     error_handling::HandleErrorLayer,
 };
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::{BoxError, ServiceBuilder};
@@ -18,8 +18,14 @@ use tower_http::{
     cors::{CorsLayer, Any},
 };
 use tracing::{info, error, Level};
-use client::TencentMeetingClient;
+use client::{
+    TencentMeetingClient, 
+    CreateMeetingRequest, 
+    CreateMeetingResponse,
+    CancelMeetingRequest
+};
 use std::time::Duration;
+use chrono;
 
 // Define pagination query parameters
 #[derive(Debug, Deserialize)]
@@ -59,8 +65,11 @@ async fn main() {
     // Create router with routes
     let app = Router::new()
         .route("/meeting-rooms", get(list_meeting_rooms))
+        .route("/meetings", post(create_meeting))
+        .route("/meetings/:meeting_id/cancel", post(cancel_meeting))
         .route("/health", get(health_check))
         .route("/test", get(test_endpoint))
+        .route("/test-meetings", get(test_meetings))
         .with_state(app_state)
         .layer(
             ServiceBuilder::new()
@@ -117,6 +126,106 @@ async fn test_endpoint() -> Json<client::MeetingRoomsResponse> {
     Json(mock_response)
 }
 
+// Test endpoint for meeting creation
+#[derive(Debug, Serialize)]
+struct TestMeetingResponse {
+    sample_create_request: CreateMeetingRequest,
+    sample_cancel_request: CancelMeetingRequest,
+    api_endpoints: Vec<String>,
+}
+
+// Test endpoint that returns sample meeting requests
+// Test endpoint to demonstrate meeting creation/cancellation APIs
+async fn test_meetings() -> Json<TestMeetingResponse> {
+    // Sample meeting creation request
+    let sample_create = CreateMeetingRequest {
+        userid: "test_user".to_string(),
+        instanceid: 1,
+        subject: "Test Meeting".to_string(),
+        type_: 0, // Scheduled meeting
+        _type: 0, // This will be auto-populated later
+        hosts: Some(vec![
+            client::User {
+                userid: "test_host".to_string(),
+                is_anonymous: None,
+                nick_name: None,
+            }
+        ]),
+        invitees: Some(vec![
+            client::User {
+                userid: "test_attendee1".to_string(),
+                is_anonymous: None, 
+                nick_name: None,
+            },
+            client::User {
+                userid: "test_attendee2".to_string(),
+                is_anonymous: None,
+                nick_name: None,
+            }
+        ]),
+        start_time: (chrono::Utc::now() + chrono::Duration::hours(1))
+            .timestamp().to_string(),
+        end_time: (chrono::Utc::now() + chrono::Duration::hours(2))
+            .timestamp().to_string(),
+        password: Some("123456".to_string()),
+        settings: Some(client::MeetingSettings {
+            mute_enable_type_join: Some(2),
+            mute_enable_join: Some(true),
+            allow_unmute_self: Some(true),
+            play_ivr_on_leave: None,
+            play_ivr_on_join: None,
+            allow_in_before_host: Some(true),
+            auto_in_waiting_room: Some(false),
+            allow_screen_shared_watermark: Some(false),
+            water_mark_type: None,
+            only_enterprise_user_allowed: None,
+            only_user_join_type: Some(1),
+            auto_record_type: None,
+            participant_join_auto_record: None,
+            enable_host_pause_auto_record: None,
+            allow_multi_device: Some(true),
+            change_nickname: None,
+        }),
+        meeting_type: None,
+        recurring_rule: None,
+        enable_live: None,
+        live_config: None,
+        enable_doc_upload_permission: None,
+        media_set_type: None,
+        enable_interpreter: None,
+        enable_enroll: None,
+        enable_host_key: None,
+        host_key: None,
+        sync_to_wework: None,
+        time_zone: None,
+        location: None,
+        allow_enterprise_intranet_only: None,
+        guests: None,
+    };
+    
+    // Sample meeting cancellation request
+    let sample_cancel = CancelMeetingRequest {
+        userid: "test_user".to_string(),
+        instanceid: 1,
+        reason_code: 1,
+        meeting_type: None,
+        sub_meeting_id: None,
+        reason_detail: Some("Test cancellation".to_string()),
+    };
+    
+    // API usage info
+    let endpoints = vec![
+        "POST /meetings - Create a new meeting".to_string(),
+        "POST /meetings/{meeting_id}/cancel - Cancel an existing meeting".to_string(),
+    ];
+    
+    Json(TestMeetingResponse {
+        sample_create_request: sample_create,
+        sample_cancel_request: sample_cancel,
+        api_endpoints: endpoints,
+    })
+}
+
 // List meeting rooms endpoint
 async fn list_meeting_rooms(
     State(state): State<Arc<AppState>>,
@@ -132,6 +241,45 @@ async fn list_meeting_rooms(
         }
         Err(err) => {
             error!("Failed to retrieve meeting rooms: {}", err);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Create meeting endpoint
+async fn create_meeting(
+    State(state): State<Arc<AppState>>,
+    ExtractJson(meeting_request): ExtractJson<CreateMeetingRequest>,
+) -> Result<Json<CreateMeetingResponse>, StatusCode> {
+    info!("Received request to create meeting: {}", meeting_request.subject);
+    
+    match state.client.create_meeting(&meeting_request).await {
+        Ok(response) => {
+            info!("Successfully created {} meetings", response.meeting_number);
+            Ok(Json(response))
+        }
+        Err(err) => {
+            error!("Failed to create meeting: {}", err);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Cancel meeting endpoint
+async fn cancel_meeting(
+    State(state): State<Arc<AppState>>,
+    Path(meeting_id): Path<String>,
+    ExtractJson(cancel_request): ExtractJson<CancelMeetingRequest>,
+) -> Result<StatusCode, StatusCode> {
+    info!("Received request to cancel meeting: {}", meeting_id);
+    
+    match state.client.cancel_meeting(&meeting_id, &cancel_request).await {
+        Ok(_) => {
+            info!("Successfully cancelled meeting {}", meeting_id);
+            Ok(StatusCode::OK)
+        }
+        Err(err) => {
+            error!("Failed to cancel meeting: {}", err);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

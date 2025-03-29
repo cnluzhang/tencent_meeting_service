@@ -19,5 +19,15 @@ pub mod client;
 pub mod auth;
 
 // Re-export the main API types for ease of use
-pub use client::{TencentMeetingClient, MeetingRoomItem, MeetingRoomsResponse};
+pub use client::{
+    TencentMeetingClient, 
+    MeetingRoomItem, 
+    MeetingRoomsResponse,
+    CreateMeetingRequest,
+    CreateMeetingResponse,
+    CancelMeetingRequest,
+    User,
+    MeetingSettings,
+    MeetingInfo,
+};
 pub use auth::TencentAuth;
