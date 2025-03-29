@@ -1,5 +1,5 @@
 //! Tencent Meeting API Service
-//! 
+//!
 //! This library provides a Rust client for the Tencent Meeting API
 //! and a web service for accessing meeting room information.
 //! It can be used to bridge between form services and Tencent Meeting.
@@ -14,28 +14,21 @@
 //! - `routes`: API routes configuration
 
 // Core modules
-pub mod client;
 pub mod auth;
+pub mod client;
 
 // Web API modules
 pub mod handlers;
 pub mod models;
-pub mod services;
 pub mod routes;
+pub mod services;
 
 // Re-export the main API types for ease of use
-pub use client::{
-    TencentMeetingClient, 
-    MeetingRoomItem, 
-    MeetingRoomsResponse,
-    CreateMeetingRequest,
-    CreateMeetingResponse,
-    CancelMeetingRequest,
-    User,
-    MeetingSettings,
-    MeetingInfo,
-};
 pub use auth::TencentAuth;
+pub use client::{
+    CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse, MeetingInfo,
+    MeetingRoomItem, MeetingRoomsResponse, MeetingSettings, TencentMeetingClient, User,
+};
 pub use handlers::api::AppState;
 pub use models::common::PaginationParams;
 pub use models::form::FormSubmission;

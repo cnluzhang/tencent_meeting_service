@@ -1,5 +1,5 @@
-use serde::Serialize;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 // Structure to represent a parsed time slot
 #[derive(Debug, Clone, Serialize)]

@@ -1,17 +1,15 @@
-use std::collections::HashMap;
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
-use tracing::{info, error};
+use std::collections::HashMap;
+use tracing::{error, info};
 
-use crate::models::form::FormSubmission;
-use crate::models::meeting::{TimeSlot, MeetingResult};
-use crate::client::{TencentMeetingClient, CreateMeetingRequest, User, MeetingSettings};
+use crate::client::{CreateMeetingRequest, MeetingSettings, TencentMeetingClient, User};
 use crate::models::form::FormField1Item;
+use crate::models::form::FormSubmission;
+use crate::models::meeting::{MeetingResult, TimeSlot};
 
 // Parse a scheduled time from a form field item
-pub fn parse_time_slot(
-    reservation: &FormField1Item
-) -> Result<TimeSlot, String> {
+pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String> {
     // Parse the scheduled time
     let scheduled_at_str = &reservation.scheduled_at;
     let meeting_start_time = match DateTime::parse_from_rfc3339(scheduled_at_str) {
@@ -20,35 +18,41 @@ pub fn parse_time_slot(
             return Err(format!("Failed to parse scheduled_at time: {}", e));
         }
     };
-    
+
     // Parse the scheduled label to determine meeting duration
     // Format expected: "2025-03-30 09:00-10:00" or similar
     let scheduled_label = &reservation.scheduled_label;
     let parts: Vec<&str> = scheduled_label.split(' ').collect();
     let mut meeting_end_time = meeting_start_time + chrono::Duration::hours(1); // Default 1 hour
-    
+
     if parts.len() > 1 {
         let time_parts: Vec<&str> = parts[1].split('-').collect();
         if time_parts.len() > 1 {
             let start_time_str = time_parts[0];
             let end_time_str = time_parts[1];
-            
+
             // Parse hour difference
             if let (Some(start_hour), Some(end_hour)) = (
-                start_time_str.split(':').next().and_then(|h| h.parse::<i64>().ok()),
-                end_time_str.split(':').next().and_then(|h| h.parse::<i64>().ok())
+                start_time_str
+                    .split(':')
+                    .next()
+                    .and_then(|h| h.parse::<i64>().ok()),
+                end_time_str
+                    .split(':')
+                    .next()
+                    .and_then(|h| h.parse::<i64>().ok()),
             ) {
-                let hours_diff = if end_hour > start_hour { 
-                    end_hour - start_hour 
-                } else { 
+                let hours_diff = if end_hour > start_hour {
+                    end_hour - start_hour
+                } else {
                     24 + end_hour - start_hour // Handle overnight meetings
                 };
-                
+
                 meeting_end_time = meeting_start_time + chrono::Duration::hours(hours_diff);
             }
         }
     }
-    
+
     Ok(TimeSlot {
         item_name: reservation.item_name.clone(),
         scheduled_label: reservation.scheduled_label.clone(),
@@ -65,25 +69,25 @@ pub fn can_merge_time_slots(slots: &[TimeSlot]) -> bool {
     if slots.len() <= 1 {
         return true; // Single slot or empty list is already "merged"
     }
-    
+
     // All slots must be for the same room
     let first_room = &slots[0].item_name;
     if !slots.iter().all(|slot| &slot.item_name == first_room) {
         return false;
     }
-    
+
     // Sort time slots by start_time
     let mut sorted_slots = slots.to_vec();
     sorted_slots.sort_by_key(|slot| slot.start_time);
-    
+
     // Check for continuity (end time of one slot equals start time of the next)
     for i in 0..sorted_slots.len() - 1 {
         // If there's a gap or overlap, we can't merge
-        if sorted_slots[i].end_time != sorted_slots[i+1].start_time {
+        if sorted_slots[i].end_time != sorted_slots[i + 1].start_time {
             return false;
         }
     }
-    
+
     true
 }
 
@@ -92,28 +96,29 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
     if slots.is_empty() {
         return Vec::new();
     }
-    
+
     // Group slots by room name
     let mut room_groups: HashMap<String, Vec<TimeSlot>> = HashMap::new();
     for slot in slots {
-        room_groups.entry(slot.item_name.clone())
+        room_groups
+            .entry(slot.item_name.clone())
             .or_insert_with(Vec::new)
             .push(slot.clone());
     }
-    
+
     let mut mergeable_groups = Vec::new();
-    
+
     // Process each room's slots
     for (_, mut room_slots) in room_groups {
         // Sort by start time
         room_slots.sort_by_key(|slot| slot.start_time);
-        
+
         // Find continuous groups
         let mut current_group = vec![room_slots[0].clone()];
-        
+
         for i in 1..room_slots.len() {
             let last_slot = &current_group.last().unwrap();
-            
+
             // If this slot starts exactly when the previous one ends, merge them
             if last_slot.end_time == room_slots[i].start_time {
                 current_group.push(room_slots[i].clone());
@@ -125,13 +130,13 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
                 current_group = vec![room_slots[i].clone()];
             }
         }
-        
+
         // Add the last group if not empty
         if !current_group.is_empty() {
             mergeable_groups.push(current_group);
         }
     }
-    
+
     mergeable_groups
 }
 
@@ -150,13 +155,11 @@ pub async fn create_meeting_with_time_slot(
         subject: form_submission.entry.field_8.clone(),
         type_: 0, // Scheduled meeting
         _type: 0,
-        hosts: Some(vec![
-            User {
-                userid: client.get_operator_id().to_string(),
-                is_anonymous: None,
-                nick_name: None,
-            }
-        ]),
+        hosts: Some(vec![User {
+            userid: client.get_operator_id().to_string(),
+            is_anonymous: None,
+            nick_name: None,
+        }]),
         invitees: None,
         start_time: time_slot.start_time.timestamp().to_string(),
         end_time: time_slot.end_time.timestamp().to_string(),
@@ -176,12 +179,16 @@ pub async fn create_meeting_with_time_slot(
             enable_host_pause_auto_record: None,
             allow_multi_device: Some(true),
             change_nickname: None,
-            play_ivr_on_leave: None, 
+            play_ivr_on_leave: None,
             play_ivr_on_join: None,
         }),
-        location: Some(format!("{} ({})", 
+        location: Some(format!(
+            "{} ({})",
             time_slot.item_name,
-            form_submission.entry.extra_fields.get(dept_field_name)
+            form_submission
+                .entry
+                .extra_fields
+                .get(dept_field_name)
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown Department")
         )),
@@ -200,13 +207,12 @@ pub async fn create_meeting_with_time_slot(
         allow_enterprise_intranet_only: None,
         guests: None,
     };
-    
-    info!("Creating meeting for room: {} with time range: {}-{}", 
-        time_slot.item_name,
-        time_slot.start_time,
-        time_slot.end_time
+
+    info!(
+        "Creating meeting for room: {} with time range: {}-{}",
+        time_slot.item_name, time_slot.start_time, time_slot.end_time
     );
-    
+
     // Call the Tencent Meeting API to create the meeting
     match client.create_meeting(&meeting_request).await {
         Ok(response) => {
@@ -222,11 +228,10 @@ pub async fn create_meeting_with_time_slot(
             } else {
                 let meeting_info = &response.meeting_info_list[0];
                 info!(
-                    "Successfully created meeting: {} with ID: {}", 
-                    meeting_info.subject, 
-                    meeting_info.meeting_id
+                    "Successfully created meeting: {} with ID: {}",
+                    meeting_info.subject, meeting_info.meeting_id
                 );
-                
+
                 Ok(MeetingResult {
                     meeting_id: Some(meeting_info.meeting_id.clone()),
                     merged: false,
@@ -235,7 +240,7 @@ pub async fn create_meeting_with_time_slot(
                     success: true,
                 })
             }
-        },
+        }
         Err(err) => {
             error!("Failed to create meeting: {}", err);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -254,29 +259,31 @@ pub async fn create_merged_meeting(
     if time_slots.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
-    
+
     // Sort time slots to ensure correct merging
     let mut sorted_slots = time_slots.to_vec();
     sorted_slots.sort_by_key(|slot| slot.start_time);
-    
+
     // Use the earliest start time and latest end time to create a merged meeting
     let start_time = sorted_slots.first().unwrap().start_time;
     let end_time = sorted_slots.last().unwrap().end_time;
     let room_name = &sorted_slots[0].item_name;
-    
+
     // Collect all time slot labels for reporting
-    let time_slot_labels: Vec<String> = sorted_slots.iter()
+    let time_slot_labels: Vec<String> = sorted_slots
+        .iter()
         .map(|slot| slot.scheduled_label.clone())
         .collect();
-    
+
     // Log merged slot details
-    info!("Creating merged time slot for room: {}, slots: {}, time range: {}-{}", 
-        room_name, 
+    info!(
+        "Creating merged time slot for room: {}, slots: {}, time range: {}-{}",
+        room_name,
         time_slots.len(),
         start_time,
         end_time
     );
-    
+
     // Create meeting request with merged time
     let meeting_request = CreateMeetingRequest {
         userid: client.get_operator_id().to_string(),
@@ -284,13 +291,11 @@ pub async fn create_merged_meeting(
         subject: form_submission.entry.field_8.clone(),
         type_: 0, // Scheduled meeting
         _type: 0,
-        hosts: Some(vec![
-            User {
-                userid: client.get_operator_id().to_string(),
-                is_anonymous: None,
-                nick_name: None,
-            }
-        ]),
+        hosts: Some(vec![User {
+            userid: client.get_operator_id().to_string(),
+            is_anonymous: None,
+            nick_name: None,
+        }]),
         invitees: None,
         start_time: start_time.timestamp().to_string(),
         end_time: end_time.timestamp().to_string(),
@@ -310,12 +315,16 @@ pub async fn create_merged_meeting(
             enable_host_pause_auto_record: None,
             allow_multi_device: Some(true),
             change_nickname: None,
-            play_ivr_on_leave: None, 
+            play_ivr_on_leave: None,
             play_ivr_on_join: None,
         }),
-        location: Some(format!("{} ({})", 
+        location: Some(format!(
+            "{} ({})",
             room_name,
-            form_submission.entry.extra_fields.get(dept_field_name)
+            form_submission
+                .entry
+                .extra_fields
+                .get(dept_field_name)
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown Department")
         )),
@@ -334,13 +343,12 @@ pub async fn create_merged_meeting(
         allow_enterprise_intranet_only: None,
         guests: None,
     };
-    
-    info!("Creating merged meeting for room: {} with time range: {}-{}", 
-        room_name,
-        start_time,
-        end_time
+
+    info!(
+        "Creating merged meeting for room: {} with time range: {}-{}",
+        room_name, start_time, end_time
     );
-    
+
     // Call the Tencent Meeting API to create the meeting
     match client.create_meeting(&meeting_request).await {
         Ok(response) => {
@@ -356,20 +364,19 @@ pub async fn create_merged_meeting(
             } else {
                 let meeting_info = &response.meeting_info_list[0];
                 info!(
-                    "Successfully created merged meeting: {} with ID: {}", 
-                    meeting_info.subject, 
-                    meeting_info.meeting_id
+                    "Successfully created merged meeting: {} with ID: {}",
+                    meeting_info.subject, meeting_info.meeting_id
                 );
-                
+
                 Ok(MeetingResult {
                     meeting_id: Some(meeting_info.meeting_id.clone()),
-                    merged: true, 
+                    merged: true,
                     room_name: room_name.clone(),
                     time_slots: time_slot_labels,
                     success: true,
                 })
             }
-        },
+        }
         Err(err) => {
             error!("Failed to create merged meeting: {}", err);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

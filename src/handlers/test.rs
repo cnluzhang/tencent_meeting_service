@@ -1,17 +1,13 @@
 use axum::response::Json;
 use serde::Serialize;
-use std::collections::HashMap;
 use serde_json;
+use std::collections::HashMap;
 
 use crate::client::{
-    MeetingRoomItem, 
-    MeetingRoomsResponse,
-    CreateMeetingRequest, 
-    CancelMeetingRequest,
-    User,
-    MeetingSettings
+    CancelMeetingRequest, CreateMeetingRequest, MeetingRoomItem, MeetingRoomsResponse,
+    MeetingSettings, User,
 };
-use crate::models::form::{FormSubmission, FormEntry, FormField1Item};
+use crate::models::form::{FormEntry, FormField1Item, FormSubmission};
 
 // Health check endpoint
 pub async fn health_check() -> &'static str {
@@ -32,7 +28,7 @@ pub async fn test_endpoint() -> Json<MeetingRoomsResponse> {
         scheduled_status: 1,
         is_allow_call: true,
     };
-    
+
     let mock_response = MeetingRoomsResponse {
         total_count: 1,
         current_size: 1,
@@ -40,7 +36,7 @@ pub async fn test_endpoint() -> Json<MeetingRoomsResponse> {
         total_page: 1,
         meeting_room_list: vec![mock_room],
     };
-    
+
     Json(mock_response)
 }
 
@@ -61,29 +57,29 @@ pub async fn test_meetings() -> Json<TestMeetingResponse> {
         subject: "Test Meeting".to_string(),
         type_: 0, // Scheduled meeting
         _type: 0, // This will be auto-populated later
-        hosts: Some(vec![
-            User {
-                userid: "test_host".to_string(),
-                is_anonymous: None,
-                nick_name: None,
-            }
-        ]),
+        hosts: Some(vec![User {
+            userid: "test_host".to_string(),
+            is_anonymous: None,
+            nick_name: None,
+        }]),
         invitees: Some(vec![
             User {
                 userid: "test_attendee1".to_string(),
-                is_anonymous: None, 
+                is_anonymous: None,
                 nick_name: None,
             },
             User {
                 userid: "test_attendee2".to_string(),
                 is_anonymous: None,
                 nick_name: None,
-            }
+            },
         ]),
         start_time: (chrono::Utc::now() + chrono::Duration::hours(1))
-            .timestamp().to_string(),
+            .timestamp()
+            .to_string(),
         end_time: (chrono::Utc::now() + chrono::Duration::hours(2))
-            .timestamp().to_string(),
+            .timestamp()
+            .to_string(),
         password: Some("123456".to_string()),
         settings: Some(MeetingSettings {
             mute_enable_type_join: Some(2),
@@ -119,7 +115,7 @@ pub async fn test_meetings() -> Json<TestMeetingResponse> {
         allow_enterprise_intranet_only: None,
         guests: None,
     };
-    
+
     // Sample meeting cancellation request
     let sample_cancel = CancelMeetingRequest {
         userid: "test_user".to_string(),
@@ -129,14 +125,14 @@ pub async fn test_meetings() -> Json<TestMeetingResponse> {
         sub_meeting_id: None,
         reason_detail: Some("Test cancellation".to_string()),
     };
-    
+
     // API usage info
     let endpoints = vec![
         "POST /meetings - Create a new meeting".to_string(),
         "POST /meetings/{meeting_id}/cancel - Cancel an existing meeting".to_string(),
         "POST /webhook/form-submission - Webhook endpoint for form submissions".to_string(),
     ];
-    
+
     Json(TestMeetingResponse {
         sample_create_request: sample_create,
         sample_cancel_request: sample_cancel,
@@ -158,33 +154,37 @@ pub async fn test_form_submission() -> Json<TestFormSubmission> {
     // Example 1: Single time slot
     let mut extra_fields1 = HashMap::new();
     extra_fields1.insert("user_field".to_string(), serde_json::json!("User Name"));
-    extra_fields1.insert("department_field".to_string(), serde_json::json!("Department"));
-    
+    extra_fields1.insert(
+        "department_field".to_string(),
+        serde_json::json!("Department"),
+    );
+
     let single_slot_form = FormSubmission {
         form: "form_id".to_string(),
         form_name: "Meeting Room Reservation".to_string(),
         entry: FormEntry {
             token: "token123".to_string(),
-            field_1: vec![
-                FormField1Item {
-                    item_name: "Conference Room A".to_string(),
-                    scheduled_label: "2025-03-30 09:00-10:00".to_string(),
-                    number: 1,
-                    scheduled_at: "2025-03-30T01:00:00.000Z".to_string(),
-                    api_code: "CODE1".to_string(),
-                },
-            ],
+            field_1: vec![FormField1Item {
+                item_name: "Conference Room A".to_string(),
+                scheduled_label: "2025-03-30 09:00-10:00".to_string(),
+                number: 1,
+                scheduled_at: "2025-03-30T01:00:00.000Z".to_string(),
+                api_code: "CODE1".to_string(),
+            }],
             field_8: "Single Slot Meeting".to_string(),
             extra_fields: extra_fields1,
             reservation_status_fsf_field: "Reserved".to_string(),
         },
     };
-    
+
     // Example 2: Multiple non-contiguous time slots (can't merge)
     let mut extra_fields2 = HashMap::new();
     extra_fields2.insert("user_field".to_string(), serde_json::json!("User Name"));
-    extra_fields2.insert("department_field".to_string(), serde_json::json!("Department"));
-    
+    extra_fields2.insert(
+        "department_field".to_string(),
+        serde_json::json!("Department"),
+    );
+
     let multiple_slots_form = FormSubmission {
         form: "form_id".to_string(),
         form_name: "Meeting Room Reservation".to_string(),
@@ -199,7 +199,7 @@ pub async fn test_form_submission() -> Json<TestFormSubmission> {
                     api_code: "CODE1".to_string(),
                 },
                 FormField1Item {
-                    item_name: "Conference Room B".to_string(),  // Different room, can't merge
+                    item_name: "Conference Room B".to_string(), // Different room, can't merge
                     scheduled_label: "2025-03-30 10:00-11:00".to_string(),
                     number: 1,
                     scheduled_at: "2025-03-30T02:00:00.000Z".to_string(),
@@ -211,12 +211,15 @@ pub async fn test_form_submission() -> Json<TestFormSubmission> {
             reservation_status_fsf_field: "Reserved".to_string(),
         },
     };
-    
+
     // Example 3: Multiple contiguous time slots (can merge)
     let mut extra_fields3 = HashMap::new();
     extra_fields3.insert("user_field".to_string(), serde_json::json!("User Name"));
-    extra_fields3.insert("department_field".to_string(), serde_json::json!("Department"));
-    
+    extra_fields3.insert(
+        "department_field".to_string(),
+        serde_json::json!("Department"),
+    );
+
     let mergeable_slots_form = FormSubmission {
         form: "form_id".to_string(),
         form_name: "Meeting Room Reservation".to_string(),
@@ -231,8 +234,8 @@ pub async fn test_form_submission() -> Json<TestFormSubmission> {
                     api_code: "CODE1".to_string(),
                 },
                 FormField1Item {
-                    item_name: "Conference Room A".to_string(),  // Same room, contiguous times
-                    scheduled_label: "2025-03-30 10:00-11:00".to_string(), 
+                    item_name: "Conference Room A".to_string(), // Same room, contiguous times
+                    scheduled_label: "2025-03-30 10:00-11:00".to_string(),
                     number: 1,
                     scheduled_at: "2025-03-30T02:00:00.000Z".to_string(), // This is 10:00 UTC+8
                     api_code: "CODE1".to_string(),
@@ -243,7 +246,7 @@ pub async fn test_form_submission() -> Json<TestFormSubmission> {
             reservation_status_fsf_field: "Reserved".to_string(),
         },
     };
-    
+
     Json(TestFormSubmission {
         single_slot_example: single_slot_form,
         multiple_slots_example: multiple_slots_form,

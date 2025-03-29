@@ -5,11 +5,9 @@ use axum::{
 use std::sync::Arc;
 
 use crate::handlers::api::{
-    list_meeting_rooms, create_meeting, cancel_meeting, handle_form_submission, AppState
+    cancel_meeting, create_meeting, handle_form_submission, list_meeting_rooms, AppState,
 };
-use crate::handlers::test::{
-    health_check, test_endpoint, test_meetings, test_form_submission
-};
+use crate::handlers::test::{health_check, test_endpoint, test_form_submission, test_meetings};
 
 pub fn create_router(app_state: Arc<AppState>) -> Router {
     // API routes
