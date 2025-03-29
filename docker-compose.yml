@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Development service for local development
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+    command: bash -c "cargo install cargo-watch && cargo watch -x run"
+
+volumes:
+  cargo-cache:

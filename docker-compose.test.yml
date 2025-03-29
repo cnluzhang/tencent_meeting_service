@@ -1,0 +1,11 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env
+    environment:
+      - RUST_LOG=debug
