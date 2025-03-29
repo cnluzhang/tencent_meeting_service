@@ -7,7 +7,8 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 
 use crate::client::{
-    CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse, TencentMeetingClient,
+    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse, 
+    ReleaseRoomsRequest, TencentMeetingClient,
 };
 use crate::models::common::PaginationParams;
 use crate::models::form::FormSubmission;
@@ -95,6 +96,48 @@ pub async fn cancel_meeting(
         }
         Err(err) => {
             error!("Failed to cancel meeting: {}", err);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Book rooms for a meeting endpoint
+pub async fn book_rooms(
+    State(state): State<Arc<AppState>>,
+    Path(meeting_id): Path<String>,
+    ExtractJson(book_request): ExtractJson<BookRoomsRequest>,
+) -> Result<StatusCode, StatusCode> {
+    info!("Received request to book rooms for meeting: {}", meeting_id);
+    info!("Room IDs to book: {:?}", book_request.meeting_room_id_list);
+
+    match state.client.book_rooms(&meeting_id, &book_request).await {
+        Ok(_) => {
+            info!("Successfully booked rooms for meeting {}", meeting_id);
+            Ok(StatusCode::OK)
+        }
+        Err(err) => {
+            error!("Failed to book rooms: {}", err);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Release rooms for a meeting endpoint
+pub async fn release_rooms(
+    State(state): State<Arc<AppState>>,
+    Path(meeting_id): Path<String>,
+    ExtractJson(release_request): ExtractJson<ReleaseRoomsRequest>,
+) -> Result<StatusCode, StatusCode> {
+    info!("Received request to release rooms for meeting: {}", meeting_id);
+    info!("Room IDs to release: {:?}", release_request.meeting_room_id_list);
+
+    match state.client.release_rooms(&meeting_id, &release_request).await {
+        Ok(_) => {
+            info!("Successfully released rooms for meeting {}", meeting_id);
+            Ok(StatusCode::OK)
+        }
+        Err(err) => {
+            error!("Failed to release rooms: {}", err);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

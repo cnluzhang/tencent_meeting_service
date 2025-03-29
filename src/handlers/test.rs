@@ -4,8 +4,8 @@ use serde_json;
 use std::collections::HashMap;
 
 use crate::client::{
-    CancelMeetingRequest, CreateMeetingRequest, MeetingRoomItem, MeetingRoomsResponse,
-    MeetingSettings, User,
+    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, MeetingRoomItem, MeetingRoomsResponse,
+    MeetingSettings, ReleaseRoomsRequest, User,
 };
 use crate::models::form::{FormEntry, FormField1Item, FormSubmission};
 
@@ -45,6 +45,8 @@ pub async fn test_endpoint() -> Json<MeetingRoomsResponse> {
 pub struct TestMeetingResponse {
     pub sample_create_request: CreateMeetingRequest,
     pub sample_cancel_request: CancelMeetingRequest,
+    pub sample_book_rooms_request: BookRoomsRequest,
+    pub sample_release_rooms_request: ReleaseRoomsRequest,
     pub api_endpoints: Vec<String>,
 }
 
@@ -126,16 +128,35 @@ pub async fn test_meetings() -> Json<TestMeetingResponse> {
         reason_detail: Some("Test cancellation".to_string()),
     };
 
+    // Sample room booking request
+    let sample_book_rooms = BookRoomsRequest {
+        operator_id: "test_user".to_string(),
+        operator_id_type: 1,
+        meeting_room_id_list: vec!["room123".to_string(), "room456".to_string()],
+        subject_visible: Some(true),
+    };
+    
+    // Sample room release request
+    let sample_release_rooms = ReleaseRoomsRequest {
+        operator_id: "test_user".to_string(),
+        operator_id_type: 1,
+        meeting_room_id_list: vec!["room123".to_string(), "room456".to_string()],
+    };
+
     // API usage info
     let endpoints = vec![
         "POST /meetings - Create a new meeting".to_string(),
         "POST /meetings/{meeting_id}/cancel - Cancel an existing meeting".to_string(),
+        "POST /meetings/{meeting_id}/book-rooms - Book rooms for a meeting".to_string(),
+        "POST /meetings/{meeting_id}/release-rooms - Release rooms from a meeting".to_string(),
         "POST /webhook/form-submission - Webhook endpoint for form submissions".to_string(),
     ];
 
     Json(TestMeetingResponse {
         sample_create_request: sample_create,
         sample_cancel_request: sample_cancel,
+        sample_book_rooms_request: sample_book_rooms,
+        sample_release_rooms_request: sample_release_rooms,
         api_endpoints: endpoints,
     })
 }

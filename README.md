@@ -49,6 +49,8 @@ tencent_meeting_service/
 - `GET /meeting-rooms?page=1&page_size=20` - Get meeting rooms with pagination
 - `POST /meetings` - Create a new meeting with Tencent Meeting API
 - `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting
+- `POST /meetings/{meeting_id}/book-rooms` - Book meeting rooms for an existing meeting
+- `POST /meetings/{meeting_id}/release-rooms` - Release previously booked meeting rooms
 - `POST /webhook/form-submission` - Webhook endpoint for form submissions to create meetings
 
 ## Setup

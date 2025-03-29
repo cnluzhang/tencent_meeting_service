@@ -247,6 +247,24 @@ pub struct CancelMeetingRequest {
     pub reason_detail: Option<String>,
 }
 
+// Meeting room booking types
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BookRoomsRequest {
+    pub operator_id: String,
+    pub operator_id_type: i32,
+    pub meeting_room_id_list: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_visible: Option<bool>,
+}
+
+// Meeting room release types
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReleaseRoomsRequest {
+    pub operator_id: String,
+    pub operator_id_type: i32,
+    pub meeting_room_id_list: Vec<String>,
+}
+
 /// Client for Tencent Meeting API
 pub struct TencentMeetingClient {
     client: Client,
@@ -469,6 +487,114 @@ impl TencentMeetingClient {
         }
 
         // For successful cancellation, the response body is empty
+        Ok(())
+    }
+
+    /// Book meeting rooms for a meeting using the Tencent Meeting API
+    pub async fn book_rooms(
+        &self,
+        meeting_id: &str,
+        book_request: &BookRoomsRequest,
+    ) -> Result<(), reqwest::Error> {
+        let method = "POST";
+        let uri = format!("/v1/meetings/{}/book-rooms", meeting_id);
+        let url = format!("{}{}", self.endpoint, uri);
+
+        let request_body = serde_json::to_string(&book_request)
+            .expect("Failed to serialize book rooms request");
+
+        let timestamp = TencentAuth::get_timestamp();
+        let nonce = TencentAuth::generate_nonce();
+
+        let signature = self.generate_signature(method, &uri, timestamp, &nonce, &request_body);
+
+        info!("Making request to book rooms for meeting {}", meeting_id);
+        debug!("API URL: {}", url);
+        debug!("Request body: {}", request_body);
+
+        // Build the request with all required headers
+        let mut request = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("X-TC-Key", &self.secret_id)
+            .header("X-TC-Timestamp", timestamp.to_string())
+            .header("X-TC-Nonce", &nonce)
+            .header("X-TC-Signature", signature)
+            .header("AppId", &self.app_id)
+            .header("X-TC-Registered", "1")
+            .body(request_body);
+
+        // Add SdkId header if not empty
+        if !self.sdk_id.is_empty() {
+            request = request.header("SdkId", &self.sdk_id);
+        }
+
+        // Send the request
+        let res = request.send().await?;
+        info!("Response received with status: {}", res.status());
+
+        // Log any errors but let the JSON parsing handle failures
+        if !res.status().is_success() {
+            let status = res.status();
+            error!("Book rooms failed with status: {}", status);
+        }
+
+        // For successful booking, the response body is typically empty
+        Ok(())
+    }
+
+    /// Release meeting rooms for a meeting using the Tencent Meeting API
+    pub async fn release_rooms(
+        &self,
+        meeting_id: &str,
+        release_request: &ReleaseRoomsRequest,
+    ) -> Result<(), reqwest::Error> {
+        let method = "POST";
+        let uri = format!("/v1/meetings/{}/release-rooms", meeting_id);
+        let url = format!("{}{}", self.endpoint, uri);
+
+        let request_body = serde_json::to_string(&release_request)
+            .expect("Failed to serialize release rooms request");
+
+        let timestamp = TencentAuth::get_timestamp();
+        let nonce = TencentAuth::generate_nonce();
+
+        let signature = self.generate_signature(method, &uri, timestamp, &nonce, &request_body);
+
+        info!("Making request to release rooms for meeting {}", meeting_id);
+        debug!("API URL: {}", url);
+        debug!("Request body: {}", request_body);
+
+        // Build the request with all required headers
+        let mut request = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("X-TC-Key", &self.secret_id)
+            .header("X-TC-Timestamp", timestamp.to_string())
+            .header("X-TC-Nonce", &nonce)
+            .header("X-TC-Signature", signature)
+            .header("AppId", &self.app_id)
+            .header("X-TC-Registered", "1")
+            .body(request_body);
+
+        // Add SdkId header if not empty
+        if !self.sdk_id.is_empty() {
+            request = request.header("SdkId", &self.sdk_id);
+        }
+
+        // Send the request
+        let res = request.send().await?;
+        info!("Response received with status: {}", res.status());
+
+        // Log any errors but let the JSON parsing handle failures
+        if !res.status().is_success() {
+            let status = res.status();
+            error!("Release rooms failed with status: {}", status);
+        }
+
+        // For successful room release, the response body is typically empty
         Ok(())
     }
 }
