@@ -50,7 +50,23 @@ FORM_USER_FIELD_NAME=user_field_name
 FORM_DEPT_FIELD_NAME=department_field_name
 ```
 
-## Code Style Guidelines
+## Code Organization
+
+### Module Structure
+- **handlers/**: API endpoint handlers
+  - **api.rs**: Main API endpoints (meeting rooms, meeting creation/cancellation, form webhook)
+  - **test.rs**: Test and health check endpoints
+- **models/**: Data structures
+  - **common.rs**: Shared types like PaginationParams
+  - **form.rs**: Form submission data structures
+  - **meeting.rs**: Meeting-related data structures
+- **services/**: Business logic
+  - **time_slots.rs**: Time slot processing, merging, and meeting creation
+- **routes.rs**: Centralizes all API routes
+- **client.rs**: Tencent Meeting API client
+- **auth.rs**: Authentication utilities
+
+### Code Style Guidelines
 - **Imports**: Group standard library, external crates, then local modules
 - **Formatting**: Follow rustfmt conventions; run `cargo fmt` before commits
 - **Types**: Use strong typing with Serde for JSON serialization/deserialization
@@ -62,9 +78,10 @@ FORM_DEPT_FIELD_NAME=department_field_name
 - **Security**: Never hardcode credentials; always use .env for sensitive values
 - **Logging**: Use tracing crate with appropriate log levels (debug/info/warn/error)
 - **Web Routes**: Keep handler functions small and focused on business logic
+- **Modularity**: Keep files focused on a single responsibility; prefer many small files over few large ones
 
 ## Tencent Meeting API Authentication
-- **Authentication Module**: `auth.rs` contains the `TencentAuth` struct with authentication utilities
+- **Authentication Module**: `src/auth.rs` contains the `TencentAuth` struct with authentication utilities
 - **Authentication Method**: AKSK (AppId, SecretId, SecretKey) with HMAC-SHA256 signatures
 - **TencentAuth Functions**:
   - `generate_signature`: Creates HMAC-SHA256 signatures for API requests

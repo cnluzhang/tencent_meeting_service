@@ -8,15 +8,20 @@
 //!
 //! - `client`: TencentMeetingClient for API operations
 //! - `auth`: Authentication utilities for Tencent Meeting API
-//!
-//! # Authentication
-//!
-//! The library uses AKSK (AppId, SecretId, SecretKey) authentication with HMAC-SHA256
-//! signatures as required by Tencent Meeting API. The authentication logic is
-//! encapsulated in the `auth` module.
+//! - `handlers`: API endpoint handlers
+//! - `models`: Data structures and types
+//! - `services`: Business logic services
+//! - `routes`: API routes configuration
 
+// Core modules
 pub mod client;
 pub mod auth;
+
+// Web API modules
+pub mod handlers;
+pub mod models;
+pub mod services;
+pub mod routes;
 
 // Re-export the main API types for ease of use
 pub use client::{
@@ -31,3 +36,8 @@ pub use client::{
     MeetingInfo,
 };
 pub use auth::TencentAuth;
+pub use handlers::api::AppState;
+pub use models::common::PaginationParams;
+pub use models::form::FormSubmission;
+pub use models::meeting::WebhookResponse;
+pub use routes::create_router;

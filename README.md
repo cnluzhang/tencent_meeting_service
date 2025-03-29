@@ -21,10 +21,23 @@ tencent_meeting_service/
 ├── docker-compose.yml   # Docker Compose setup
 ├── CLAUDE.md            # Development guidelines
 └── src/
-    ├── main.rs          # Web server and API endpoints
-    ├── client.rs        # Tencent Meeting API client
+    ├── main.rs          # Application entry point
+    ├── lib.rs           # Library exports
+    ├── routes.rs        # API routes configuration
     ├── auth.rs          # Authentication utilities for Tencent Meeting API
-    └── lib.rs           # Library exports
+    ├── client.rs        # Tencent Meeting API client
+    ├── handlers/        # API endpoint handlers
+    │   ├── api.rs       # Main API endpoints
+    │   ├── test.rs      # Test endpoints
+    │   └── mod.rs       # Module exports
+    ├── models/          # Data structures and types
+    │   ├── common.rs    # Shared types
+    │   ├── form.rs      # Form-related structures
+    │   ├── meeting.rs   # Meeting-related structures
+    │   └── mod.rs       # Module exports
+    └── services/        # Business logic
+        ├── time_slots.rs # Time slot processing
+        └── mod.rs       # Module exports
 ```
 
 ## API Endpoints
@@ -114,6 +127,35 @@ Required query parameters for meeting room endpoints:
 - `operator_id` - User ID of the operator making the request
 - `operator_id_type` - Type of operator ID (1 for userid)
 
+## Codebase Organization
+
+The project uses a modular architecture to improve maintainability and separation of concerns:
+
+1. **Models** (`src/models/`) - Data structures and types
+   - Common types shared across the application
+   - Form submission data structures
+   - Meeting-related data structures
+
+2. **Handlers** (`src/handlers/`) - API endpoint handlers
+   - Production API endpoints
+   - Test endpoints for development and debugging
+
+3. **Services** (`src/services/`) - Business logic
+   - Time slot processing logic
+   - Meeting creation and merging logic
+
+4. **Routes** (`src/routes.rs`) - Centralized routing configuration
+   - Manages all API endpoints in a single location
+   - Separates routing concerns from business logic
+
+5. **Client** (`src/client.rs`) - Tencent Meeting API client
+   - Handles communication with the Tencent Meeting API
+   - Encapsulates request/response handling
+
+6. **Authentication** (`src/auth.rs`) - Authentication utilities
+   - HMAC-SHA256 signature generation
+   - Nonce and timestamp utilities
+
 ## Form Service Integration
 
 The service is designed to be integrated with form services, allowing users to:
@@ -124,7 +166,7 @@ The service is designed to be integrated with form services, allowing users to:
 
 ### Form Webhook Integration
 
-The service includes a webhook endpoint (`/webhook/form-submission`) that accepts form submissions and automatically creates meetings in Tencent Meeting. The webhook expects the following JSON structure:
+The service includes a webhook endpoint (`/webhook/form-submission`) implemented in `src/handlers/api.rs` that accepts form submissions and automatically creates meetings in Tencent Meeting. The webhook expects the following JSON structure:
 
 ```json
 {
