@@ -23,6 +23,7 @@ tencent_meeting_service/
 └── src/
     ├── main.rs          # Web server and API endpoints
     ├── client.rs        # Tencent Meeting API client
+    ├── auth.rs          # Authentication utilities for Tencent Meeting API
     └── lib.rs           # Library exports
 ```
 
@@ -83,7 +84,12 @@ The service will be available at `http://localhost:3000`.
 
 ## Authentication Method
 
-This service implements the AKSK (AppId, SecretId, SecretKey) authentication method for Tencent Meeting API. It generates the required signatures for API requests following Tencent's specifications:
+This service implements the AKSK (AppId, SecretId, SecretKey) authentication method for Tencent Meeting API. The authentication logic is encapsulated in the `auth.rs` module, which provides utilities for generating signatures, timestamps, and nonces for API requests following Tencent's specifications.
+
+The `TencentAuth` struct provides the following functionality:
+- `generate_signature` - Creates HMAC-SHA256 signatures for API requests
+- `generate_nonce` - Generates random nonces for request uniqueness
+- `get_timestamp` - Provides current Unix timestamps
 
 Required headers:
 - `Content-Type` - application/json

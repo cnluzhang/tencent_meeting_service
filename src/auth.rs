@@ -9,20 +9,75 @@ use rand::Rng;
 type HmacSha256 = Hmac<Sha256>;
 
 /// Authentication utilities for Tencent Meeting API
+///
+/// This module encapsulates authentication logic for the Tencent Meeting API,
+/// providing methods for generating signatures, timestamps, and nonces.
+/// It implements the AKSK (AppId, SecretId, SecretKey) authentication method
+/// required by Tencent Meeting API.
+///
+/// # Examples
+///
+/// ```
+/// use tencent_meeting_service::auth::TencentAuth;
+///
+/// // Generate signature for a request
+/// let signature = TencentAuth::generate_signature(
+///     "secret_id",
+///     "secret_key",
+///     "GET",
+///     "/v1/meeting-rooms?page=1",
+///     1679452800,
+///     "12345678",
+///     ""
+/// );
+///
+/// // Get current timestamp
+/// let timestamp = TencentAuth::get_timestamp();
+///
+/// // Generate a random nonce
+/// let nonce = TencentAuth::generate_nonce();
+/// ```
 pub struct TencentAuth;
 
 impl TencentAuth {
     /// Generate a random nonce for API requests
+    ///
+    /// Returns an 8-digit random number as a string.
+    /// This ensures request uniqueness and helps prevent replay attacks.
     pub fn generate_nonce() -> String {
         rand::thread_rng().gen_range(10000000..99999999).to_string()
     }
     
     /// Get current timestamp for API requests
+    ///
+    /// Returns the current Unix timestamp (seconds since epoch).
+    /// Used for request freshness validation.
     pub fn get_timestamp() -> i64 {
         Utc::now().timestamp()
     }
 
     /// Generate signature for Tencent Meeting API requests
+    ///
+    /// Creates a signature using HMAC-SHA256 following Tencent Meeting API requirements.
+    /// The signature is created from the following components:
+    /// - HTTP method (GET, POST, etc.)
+    /// - Header string containing key, nonce and timestamp
+    /// - URI including query parameters
+    /// - Request body
+    ///
+    /// # Arguments
+    ///
+    /// * `secret_id` - The API secret ID for authentication
+    /// * `secret_key` - The API secret key for signature generation
+    /// * `method` - HTTP method (GET, POST, etc.)
+    /// * `uri` - Request URI including query parameters
+    /// * `timestamp` - Unix timestamp
+    /// * `nonce` - Random nonce string
+    /// * `body` - Request body content (empty for GET requests)
+    ///
+    /// # Returns
+    ///
+    /// A Base64-encoded string containing the hex representation of the HMAC-SHA256 signature
     pub fn generate_signature(
         secret_id: &str,
         secret_key: &str,

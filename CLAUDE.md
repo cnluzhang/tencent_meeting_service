@@ -55,7 +55,12 @@ TENCENT_MEETING_OPERATOR_ID=your_operator_id
 - **Web Routes**: Keep handler functions small and focused on business logic
 
 ## Tencent Meeting API Authentication
+- **Authentication Module**: `auth.rs` contains the `TencentAuth` struct with authentication utilities
 - **Authentication Method**: AKSK (AppId, SecretId, SecretKey) with HMAC-SHA256 signatures
+- **TencentAuth Functions**:
+  - `generate_signature`: Creates HMAC-SHA256 signatures for API requests
+  - `generate_nonce`: Generates random 8-digit nonces for request uniqueness
+  - `get_timestamp`: Provides current Unix timestamps
 - **Signature Format**: 
   ```
   httpMethod + "\n" + 
