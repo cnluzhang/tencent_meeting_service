@@ -1,16 +1,11 @@
 use reqwest::Client;
 use dotenv::dotenv;
 use std::env;
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use chrono::Utc;
-use base64::engine::{general_purpose, Engine};
-use rand::Rng;
 use serde::{Serialize, Deserialize};
 use tracing::{info, debug};
 
-// Type alias for HMAC-SHA256
-type HmacSha256 = Hmac<Sha256>;
+// Using fully qualified path for auth module
+use crate::auth::TencentAuth;
 
 // Meeting room response types
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,30 +66,15 @@ impl TencentMeetingClient {
 
     /// Generate signature for Tencent Meeting API requests
     fn generate_signature(&self, method: &str, uri: &str, timestamp: i64, nonce: &str, body: &str) -> String {
-        // Format the header string part as required by Tencent Meeting API
-        let header_string = format!(
-            "X-TC-Key={}&X-TC-Nonce={}&X-TC-Timestamp={}",
-            self.secret_id, nonce, timestamp
-        );
-        
-        // Format the full string to sign
-        let content = format!(
-            "{}\n{}\n{}\n{}",
-            method, header_string, uri, body
-        );
-        
-        debug!("String to sign: {}", content);
-        
-        // Generate HMAC-SHA256
-        let mut mac = HmacSha256::new_from_slice(self.secret_key.as_bytes())
-            .expect("HMAC can take key of any size");
-        mac.update(content.as_bytes());
-        
-        // Convert to hex string
-        let hex_hash = hex::encode(mac.finalize().into_bytes());
-        
-        // Base64 encode the hex string using the updated approach
-        general_purpose::STANDARD.encode(hex_hash.as_bytes())
+        TencentAuth::generate_signature(
+            &self.secret_id,
+            &self.secret_key,
+            method,
+            uri,
+            timestamp,
+            nonce,
+            body
+        )
     }
 
     /// List meeting rooms from the Tencent Meeting API
@@ -108,8 +88,8 @@ impl TencentMeetingClient {
         let full_uri = format!("{}{}", uri, query);
         let url = format!("{}{}", self.endpoint, full_uri);
 
-        let timestamp = Utc::now().timestamp();
-        let nonce = rand::thread_rng().gen_range(10000000..99999999).to_string();
+        let timestamp = TencentAuth::get_timestamp();
+        let nonce = TencentAuth::generate_nonce();
         let request_body = "";  // Empty for GET request
         
         let signature = self.generate_signature(method, &full_uri, timestamp, &nonce, request_body);

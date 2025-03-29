@@ -5,6 +5,8 @@
 //! It can be used to bridge between form services and Tencent Meeting.
 
 pub mod client;
+pub mod auth;
 
 // Re-export the main API types for ease of use
 pub use client::{TencentMeetingClient, MeetingRoomItem, MeetingRoomsResponse};
+pub use auth::TencentAuth;

@@ -1,4 +1,5 @@
 mod client;
+mod auth;
 
 use axum::{
     routing::get,
