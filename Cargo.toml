@@ -36,6 +36,13 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
 
+# Error tracking (optional)
+sentry = { version = "0.36.0", optional = true }
+
+[features]
+default = []
+sentry-monitoring = ["sentry"]
+
 [dev-dependencies]
 # Testing utilities
 mockall = "0.12"

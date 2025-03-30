@@ -9,7 +9,10 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::{info, Level};
+use tracing::{error, info, warn, Level};
+
+#[cfg(feature = "sentry")]
+use sentry;
 
 use tencent_meeting_service::{
     create_router, services::database::create_database_service, AppState, TencentMeetingClient,
@@ -17,12 +20,22 @@ use tencent_meeting_service::{
 
 // Error handler
 async fn handle_error(error: BoxError) -> (StatusCode, String) {
+    // Log the error
+    let error_message = error.to_string();
+    
+    // Capture error to Sentry if enabled
+    #[cfg(feature = "sentry")]
+    {
+        sentry::capture_message(&error_message, sentry::Level::Error);
+    }
+    
     if error.is::<tokio::time::error::Elapsed>() {
         (
             StatusCode::REQUEST_TIMEOUT,
             "Request took too long".to_string(),
         )
     } else {
+        tracing::error!("Internal server error: {}", error);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Unhandled internal error: {}", error),
@@ -36,6 +49,24 @@ async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
+        
+    // Initialize Sentry if enabled and configured
+    #[cfg(feature = "sentry")]
+    let _sentry_guard = if let Ok(dsn) = env::var("SENTRY_DSN") {
+        info!("Initializing Sentry error monitoring");
+        let guard = sentry::init((
+            dsn,
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                environment: Some(env::var("ENVIRONMENT").unwrap_or_else(|_| "development".into()).into()),
+                ..Default::default()
+            },
+        ));
+        Some(guard)
+    } else {
+        warn!("Sentry feature enabled but SENTRY_DSN not set - error monitoring disabled");
+        None
+    };
 
     // Initialize the Tencent Meeting API client
     let client = TencentMeetingClient::new();

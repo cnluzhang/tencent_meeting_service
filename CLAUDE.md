@@ -122,6 +122,9 @@ SKIP_MEETING_CREATION=false  # Set to true to only store in database without API
 SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
 ENVIRONMENT=development      # Set to "production" to only expose webhook and health endpoints
 
+# Error tracking (optional)
+SENTRY_DSN=https://your-sentry-dsn  # DSN from Sentry for error monitoring
+
 # Database configuration (optional)
 MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 ```
@@ -138,6 +141,13 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 - Restricts access to management API endpoints for security
 - Recommended for production deployments to minimize attack surface
 - Use together with webhook authentication for maximum security
+
+## Error Monitoring with Sentry
+- Optional Sentry integration for error tracking and monitoring
+- Enable by setting the SENTRY_DSN environment variable and using the sentry-monitoring feature flag
+- Automatically captures unhandled errors in the web service
+- Environment-aware reporting (development vs production)
+- Releases are tagged automatically using Cargo package version
 
 ## Graceful Shutdown
 - Service includes graceful shutdown support for SIGTERM and SIGINT (Ctrl+C) signals

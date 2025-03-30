@@ -23,8 +23,14 @@ RUN mkdir -p src && \
 # Copy the actual source code
 COPY . .
 
-# Build the application
-RUN cargo build --release
+# Build the application (conditionally enable features)
+ARG FEATURES=
+# Build with specified features
+RUN if [ -z "$FEATURES" ]; then \
+        cargo build --release; \
+    else \
+        cargo build --release --features "$FEATURES"; \
+    fi
 
 # Runtime stage
 FROM debian:bookworm-slim

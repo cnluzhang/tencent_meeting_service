@@ -3,12 +3,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        FEATURES: ""  # Set to "sentry-monitoring" to enable Sentry
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
       - RUST_LOG=info
+      # Set this in production and add to .env
+      # - ENVIRONMENT=production
+      # - SENTRY_DSN=your_sentry_dsn
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]

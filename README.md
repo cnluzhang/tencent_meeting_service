@@ -12,6 +12,7 @@ A web service that provides a bridge between form services and Tencent Meeting A
 - Configurable via environment variables
 - Health check endpoint for monitoring
 - Graceful shutdown with proper signal handling
+- Optional Sentry integration for error monitoring
 - Comprehensive test suite with 30+ automated tests
 
 ## Project Structure
@@ -99,6 +100,9 @@ SKIP_MEETING_CREATION=false  # Set to true to only store in database without API
 SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
 ENVIRONMENT=development      # Set to "production" to restrict endpoints for production
 
+# Error monitoring (optional)
+SENTRY_DSN=https://your-sentry-dsn  # DSN from Sentry dashboard for error monitoring
+
 # Database configuration (optional)
 MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 ```
@@ -123,6 +127,12 @@ The service supports several environment variables to control its behavior:
    - Restricts all management API endpoints for security
    - Reduces attack surface for production deployments
    - Recommended for any public-facing deployment
+   
+4. **SENTRY_DSN** - When set:
+   - Enables error tracking and monitoring with Sentry (requires sentry-monitoring feature flag)
+   - Automatically reports unhandled exceptions to your Sentry dashboard
+   - Includes environment information and release version
+   - Useful for production monitoring and debugging
 
 ## Data Storage
 
