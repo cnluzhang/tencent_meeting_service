@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
+use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
@@ -13,6 +14,12 @@ use crate::client::{
 use crate::models::common::PaginationParams;
 use crate::models::form::FormSubmission;
 use crate::models::meeting::{MeetingResult, WebhookResponse};
+
+// Query parameters for webhook authentication
+#[derive(Debug, Deserialize)]
+pub struct WebhookQueryParams {
+    pub auth: Option<String>,
+}
 use crate::services::database::DatabaseService;
 use crate::services::time_slots::{
     create_meeting_with_time_slot, create_merged_meeting, find_mergeable_groups, get_operator_info,
@@ -25,10 +32,11 @@ pub struct AppState {
     pub user_field_name: String, // Used to identify the operator
     pub dept_field_name: String,
     pub database: Arc<DatabaseService>,
-    pub xa_room_id: String,          // Xi'an meeting room ID
-    pub cd_room_id: String,          // Chengdu meeting room ID
-    pub skip_meeting_creation: bool, // Toggle to only store in CSV without creating meetings
-    pub skip_room_booking: bool,     // Toggle to create meetings but not book rooms
+    pub xa_room_id: String,                 // Xi'an meeting room ID
+    pub cd_room_id: String,                 // Chengdu meeting room ID
+    pub skip_meeting_creation: bool,        // Toggle to only store in CSV without creating meetings
+    pub skip_room_booking: bool,            // Toggle to create meetings but not book rooms
+    pub webhook_auth_token: Option<String>, // Authentication token for webhook endpoints
 }
 
 // List meeting rooms endpoint
@@ -156,8 +164,25 @@ pub async fn release_rooms(
 #[axum::debug_handler]
 pub async fn handle_form_submission(
     State(state): State<Arc<AppState>>,
+    Query(params): Query<WebhookQueryParams>,
     ExtractJson(form_submission): ExtractJson<FormSubmission>,
 ) -> Result<Json<WebhookResponse>, StatusCode> {
+    // Validate webhook auth token
+    if let Some(expected_token) = &state.webhook_auth_token {
+        match &params.auth {
+            Some(token) if token == expected_token => {
+                info!("Webhook request authenticated successfully");
+            }
+            Some(_) => {
+                error!("Invalid webhook authentication token provided");
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+            None => {
+                error!("No authentication token provided for webhook request");
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+    }
     // Get the appropriate room ID for this form
     let form_specific_room_id = get_room_id(&state, &form_submission);
     // Check if this is a cancellation request

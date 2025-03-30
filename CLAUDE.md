@@ -114,6 +114,9 @@ FORM_DEPT_FIELD_NAME=department_field_name
 XA_MEETING_ROOM_ID=your_xian_room_id
 CD_MEETING_ROOM_ID=your_chengdu_room_id
 
+# Security (optional but recommended)
+WEBHOOK_AUTH_TOKEN=your_secure_token  # Authentication token for webhook endpoints
+
 # Feature toggles (optional)
 SKIP_MEETING_CREATION=false  # Set to true to only store in database without API calls
 SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
@@ -265,7 +268,9 @@ When connecting to form services, make sure to:
 - Other form names default to Xi'an meeting room ID with generic location formatting
 
 ## Form Webhook Structure
-The webhook endpoint (`/webhook/form-submission`) expects the following JSON structure:
+The webhook endpoint (`/webhook/form-submission?auth=your_token`) expects the following JSON structure:
+
+> **Authentication:** The endpoint can be secured with a token via the `auth` query parameter that must match the `WEBHOOK_AUTH_TOKEN` environment variable if it's set.
 
 For meeting creation:
 

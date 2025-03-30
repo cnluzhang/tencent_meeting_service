@@ -75,6 +75,15 @@ async fn main() {
         info!("Room booking disabled: Meetings will be created but no rooms will be booked");
     }
 
+    // Load webhook auth token from environment if provided
+    let webhook_auth_token = env::var("WEBHOOK_AUTH_TOKEN").ok();
+
+    if webhook_auth_token.is_some() {
+        info!("Webhook authentication enabled with provided token");
+    } else {
+        info!("No webhook authentication token provided - authentication disabled");
+    }
+
     // Create shared application state
     let app_state = Arc::new(AppState {
         client,
@@ -85,6 +94,7 @@ async fn main() {
         cd_room_id,
         skip_meeting_creation,
         skip_room_booking,
+        webhook_auth_token,
     });
 
     // Create router with all routes

@@ -15,7 +15,7 @@ mod api_tests {
     use serde_json::json;
     
     use crate::client_mock::{MockTencentMeetingClient, setup_mock_client};
-    use crate::handlers::api::{AppState, webhook_form_submission, get_meeting_rooms};
+    use crate::handlers::api::{AppState, handle_form_submission, list_meeting_rooms, WebhookQueryParams};
     use crate::models::common::PaginationParams;
     use crate::models::form::FormSubmission;
     use crate::services::database::DatabaseService;
@@ -43,6 +43,7 @@ mod api_tests {
             cd_room_id: "room2".to_string(),  // Chengdu room ID
             skip_meeting_creation: false,
             skip_room_booking: false,
+            webhook_auth_token: None,  // No auth token for tests by default
         };
         
         // Create the router
@@ -55,6 +56,46 @@ mod api_tests {
         let server = TestServer::new_with_config(router, config).unwrap();
         
         (server, mock_client, db_service)
+    }
+    
+    // Helper function to set up a test server with authentication enabled
+    async fn setup_authenticated_test_server() -> (TestServer, Arc<MockTencentMeetingClient>, Arc<DatabaseService>, String) {
+        // Create a temporary database
+        let dir = tempdir().unwrap();
+        let csv_path = dir.path().join("test_meetings.csv");
+        let csv_path_str = csv_path.to_str().unwrap();
+        let db_service = Arc::new(DatabaseService::new(csv_path_str));
+        
+        // Set up mock client
+        let (mock_client, _) = setup_mock_client();
+        let mock_client = Arc::new(mock_client);
+        
+        // Create a test auth token
+        let auth_token = "test_auth_token_123".to_string();
+        
+        // Create app state
+        let app_state = AppState {
+            client: Arc::clone(&mock_client),
+            database: Arc::clone(&db_service),
+            user_field_name: "user_field_name".to_string(),
+            dept_field_name: "department_field_name".to_string(),
+            xa_room_id: "room1".to_string(),  // Xi'an room ID
+            cd_room_id: "room2".to_string(),  // Chengdu room ID
+            skip_meeting_creation: false,
+            skip_room_booking: false,
+            webhook_auth_token: Some(auth_token.clone()),  // Set auth token
+        };
+        
+        // Create the router
+        let router = create_router(app_state.clone());
+        
+        // Set up the test server
+        let config = TestServerConfig::builder()
+            .mock_transport()
+            .build();
+        let server = TestServer::new_with_config(router, config).unwrap();
+        
+        (server, mock_client, db_service, auth_token)
     }
     
     // Helper function for simulation mode
@@ -79,6 +120,7 @@ mod api_tests {
             cd_room_id: "room2".to_string(),  // Chengdu room ID
             skip_meeting_creation: true,  // Simulation mode ON
             skip_room_booking: true,      // Simulation mode ON
+            webhook_auth_token: None,     // No auth token for tests by default
         };
         
         // Create the router
@@ -112,9 +154,10 @@ mod api_tests {
             user_field_name: "user_field_name".to_string(),
             dept_field_name: "department_field_name".to_string(),
             xa_room_id: "room1".to_string(),  // Xi'an room ID
-cd_room_id: "room2".to_string(),  // Chengdu room ID
+            cd_room_id: "room2".to_string(),  // Chengdu room ID
             skip_meeting_creation: false,
             skip_room_booking: false,
+            webhook_auth_token: None,         // No auth required
         };
         
         // Create a form submission payload
@@ -141,14 +184,20 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
         
         let form_submission: FormSubmission = serde_json::from_value(payload).unwrap();
         
+        // No auth required
+        let query_params = WebhookQueryParams { auth: None };
+        
         // Call the handler directly
-        let result = webhook_form_submission(
+        let result = handle_form_submission(
             State(app_state),
+            Query(query_params),
             axum::Json(form_submission),
         ).await;
         
         // Check the response
-        assert_eq!(result.status(), StatusCode::OK);
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
     
     #[tokio::test]
@@ -170,9 +219,10 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
             user_field_name: "user_field_name".to_string(),
             dept_field_name: "department_field_name".to_string(),
             xa_room_id: "room1".to_string(),  // Xi'an room ID
-cd_room_id: "room2".to_string(),  // Chengdu room ID
+            cd_room_id: "room2".to_string(),  // Chengdu room ID
             skip_meeting_creation: false,
             skip_room_booking: false,
+            webhook_auth_token: None,         // No auth required
         };
         
         // First create a meeting
@@ -200,8 +250,10 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
         let form_submission: FormSubmission = serde_json::from_value(reservation_payload).unwrap();
         
         // Call the reservation handler
-        let _ = webhook_form_submission(
+        let query_params = WebhookQueryParams { auth: None };
+        let _ = handle_form_submission(
             State(app_state.clone()),
+            Query(query_params.clone()),
             axum::Json(form_submission),
         ).await;
         
@@ -230,13 +282,16 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
         let cancellation_submission: FormSubmission = serde_json::from_value(cancellation_payload).unwrap();
         
         // Call the handler again with cancellation
-        let result = webhook_form_submission(
+        let result = handle_form_submission(
             State(app_state),
+            Query(query_params),
             axum::Json(cancellation_submission),
         ).await;
         
         // Check the response for cancellation
-        assert_eq!(result.status(), StatusCode::OK);
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
         
         // Verify cancellation status in the database
         let meetings = db_service.find_all_meetings_by_token("test_token_123").unwrap();
@@ -303,7 +358,7 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
         };
         
         // Call the handler directly
-        let result = get_meeting_rooms(
+        let result = list_meeting_rooms(
             State(app_state),
             axum::extract::Query(pagination),
         ).await;
@@ -445,7 +500,7 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
             }
         });
         
-        // Send the request
+        // Send the request to the webhook endpoint
         let response = server.post("/webhook/form-submission")
             .json(&payload)
             .await;
@@ -489,6 +544,58 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
         
         // Should return a 400 Bad Request
         assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+    }
+    
+    #[tokio::test]
+    async fn test_webhook_authentication() {
+        // Set up test server with auth enabled
+        let (server, _, _, auth_token) = setup_authenticated_test_server().await;
+        
+        // Create a valid form submission payload
+        let payload = json!({
+            "form": "test_form",
+            "form_name": "Test Form",
+            "entry": {
+                "token": "test_token_auth",
+                "field_1": [
+                    {
+                        "item_name": "Conference Room A",
+                        "scheduled_label": "2025-03-30 09:00-10:00",
+                        "number": 1,
+                        "scheduled_at": "2025-03-30T01:00:00.000Z",
+                        "api_code": "CODE1"
+                    }
+                ],
+                "field_8": "Test Meeting",
+                "user_field_name": "Test User",
+                "department_field_name": "Test Department",
+                "reservation_status_fsf_field": "已预约"
+            }
+        });
+        
+        // Test with valid auth token
+        let response = server.post(&format!("/webhook/form-submission?auth={}", auth_token))
+            .json(&payload)
+            .await;
+            
+        // Should succeed with 200 OK
+        assert_eq!(response.status_code(), StatusCode::OK);
+        
+        // Test with invalid auth token
+        let response = server.post("/webhook/form-submission?auth=wrong_token")
+            .json(&payload)
+            .await;
+            
+        // Should fail with 401 Unauthorized
+        assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
+        
+        // Test with no auth token
+        let response = server.post("/webhook/form-submission")
+            .json(&payload)
+            .await;
+            
+        // Should fail with 401 Unauthorized
+        assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
     }
     
     #[tokio::test]

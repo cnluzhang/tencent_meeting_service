@@ -33,6 +33,7 @@ mod integration_tests {
             cd_room_id: "room2".to_string(), // Chengdu room ID
             skip_meeting_creation: true,     // SIMULATION MODE
             skip_room_booking: true,         // SIMULATION MODE
+            webhook_auth_token: None,        // No auth token for integration tests
         });
 
         // Create router
@@ -193,6 +194,7 @@ mod integration_tests {
             cd_room_id: "room2".to_string(), // Chengdu room ID
             skip_meeting_creation: true,     // SIMULATION MODE
             skip_room_booking: true,         // SIMULATION MODE
+            webhook_auth_token: None,        // No auth token for integration tests
         });
 
         // Create router

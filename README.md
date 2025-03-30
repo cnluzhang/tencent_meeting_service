@@ -6,6 +6,7 @@ A web service that provides a bridge between form services and Tencent Meeting A
 
 - RESTful API for meeting room data
 - Secure authentication with Tencent Meeting API
+- Webhook endpoint with optional token-based authentication
 - Docker-ready for easy deployment
 - Production and development environments
 - Configurable via environment variables
@@ -62,7 +63,7 @@ tencent_meeting_service/
 - `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting
 - `POST /meetings/{meeting_id}/book-rooms` - Book meeting rooms for an existing meeting
 - `POST /meetings/{meeting_id}/release-rooms` - Release previously booked meeting rooms
-- `POST /webhook/form-submission` - Webhook endpoint for form submissions to create meetings
+- `POST /webhook/form-submission?auth=token` - Webhook endpoint for form submissions (with optional authentication)
 
 ## Setup
 
@@ -84,6 +85,9 @@ FORM_DEPT_FIELD_NAME=department_field_name
 # Room booking (required)
 XA_MEETING_ROOM_ID=your_xian_room_id
 CD_MEETING_ROOM_ID=your_chengdu_room_id
+
+# Security (optional but recommended)
+WEBHOOK_AUTH_TOKEN=your_secure_token  # Authentication token for webhook endpoints
 
 # Optional settings
 TENCENT_MEETING_API_ENDPOINT=https://api.meeting.qq.com
@@ -272,7 +276,15 @@ The service is designed to be integrated with form services, allowing users to:
 
 ### Form Webhook Integration
 
-The service includes a webhook endpoint (`/webhook/form-submission`) implemented in `src/handlers/api.rs` that accepts form submissions and automatically creates meetings in Tencent Meeting. The webhook expects the following JSON structure:
+The service includes a webhook endpoint (`/webhook/form-submission`) implemented in `src/handlers/api.rs` that accepts form submissions and automatically creates meetings in Tencent Meeting. 
+
+**Webhook Security:**
+- The endpoint can be secured with a token via the `WEBHOOK_AUTH_TOKEN` environment variable
+- Clients must provide this token in the `auth` query parameter: `/webhook/form-submission?auth=your_token`
+- If no token is configured, authentication is disabled
+- Returns 401 Unauthorized when authentication fails
+
+The webhook expects the following JSON structure:
 
 ```json
 {
