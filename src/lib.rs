@@ -23,6 +23,10 @@ pub mod models;
 pub mod routes;
 pub mod services;
 
+// Test module
+#[cfg(test)]
+mod tests;
+
 // Re-export the main API types for ease of use
 pub use auth::TencentAuth;
 pub use client::{

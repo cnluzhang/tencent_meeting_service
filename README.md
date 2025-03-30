@@ -10,6 +10,7 @@ A web service that provides a bridge between form services and Tencent Meeting A
 - Production and development environments
 - Mock testing endpoints
 - Configurable via environment variables
+- Comprehensive test suite with 16+ automated tests
 
 ## Project Structure
 
@@ -131,6 +132,31 @@ docker compose up -d dev
 
 In development mode, the application automatically reloads when you make changes to the code.
 
+### Running Tests
+
+Run the comprehensive test suite:
+
+```bash
+docker compose exec dev cargo test
+```
+
+Run tests with output:
+
+```bash
+docker compose exec dev cargo test -- --nocapture
+```
+
+Run a specific test module:
+
+```bash
+docker compose exec dev cargo test database_tests
+```
+
+The test suite includes:
+- Database operation tests
+- Time slot processing tests
+- Authentication tests
+
 ## Production Deployment
 
 Start the production environment:
@@ -166,7 +192,7 @@ Required query parameters for meeting room endpoints:
 
 ## Codebase Organization
 
-The project uses a modular architecture to improve maintainability and separation of concerns:
+The project uses a modular architecture to improve maintainability and separation of concerns, with an extensive test suite covering core functionality:
 
 1. **Models** (`src/models/`) - Data structures and types
    - Common types shared across the application
@@ -180,6 +206,7 @@ The project uses a modular architecture to improve maintainability and separatio
 3. **Services** (`src/services/`) - Business logic
    - Time slot processing logic
    - Meeting creation and merging logic
+   - CSV database for persistent storage
 
 4. **Routes** (`src/routes.rs`) - Centralized routing configuration
    - Manages all API endpoints in a single location

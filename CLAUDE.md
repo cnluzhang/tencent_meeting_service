@@ -26,6 +26,37 @@
 - Check code: `cargo clippy`
 - Format code: `cargo fmt`
 
+## Test Suite
+
+The project includes a comprehensive test suite covering core functionality:
+
+### Database Tests
+- `test_database_creation`: Tests the creation of the database file
+- `test_store_meeting_with_time_slot`: Tests storing a single meeting with a specific time slot
+- `test_store_merged_meeting`: Tests storing a merged meeting with multiple time slots
+- `test_cancel_meeting`: Tests cancelling a meeting and updating its status
+- `test_multiple_meetings_same_token`: Tests handling multiple meetings with the same token
+- `test_deduplication`: Tests prevention of duplicate meeting entries
+
+### Time Slot Tests
+- `test_parse_time_slot`: Tests parsing time slots from form entries
+- `test_find_mergeable_groups_empty`: Tests handling empty time slot collections
+- `test_find_mergeable_groups_single`: Tests handling a single time slot
+- `test_find_mergeable_groups_consecutive`: Tests identifying consecutive time slots
+- `test_find_mergeable_groups_non_consecutive`: Tests handling non-consecutive time slots
+- `test_find_mergeable_groups_different_rooms`: Tests handling slots in different rooms
+- `test_find_mergeable_groups_complex`: Tests complex combinations of time slots
+
+### Authentication Tests
+- `test_generate_nonce`: Tests nonce generation for API authentication
+- `test_get_timestamp`: Tests timestamp generation for API requests
+- `test_generate_signature`: Tests HMAC-SHA256 signature generation
+
+### Running Tests
+- Run all tests: `docker compose exec dev cargo test`
+- Run specific module: `docker compose exec dev cargo test database_tests`
+- Run with output: `docker compose exec dev cargo test -- --nocapture`
+
 ## API Endpoints
 - `GET /health` - Health check endpoint
 - `GET /test` - Test endpoint with mock data

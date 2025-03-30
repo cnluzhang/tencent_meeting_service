@@ -15,6 +15,7 @@ tower-http = { version = "0.5", features = ["trace", "cors"] }
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json"] }
+hyper = { version = "1", features = ["full"] }
 
 # Serialization/Deserialization
 serde = { version = "1", features = ["derive"] }
@@ -33,3 +34,9 @@ chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+# Testing utilities
+mockall = "0.12"
+tempfile = "3"
+axum-test = "14"
