@@ -63,33 +63,6 @@ pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String>
     })
 }
 
-// Check if time slots can be merged
-#[allow(dead_code)]
-pub fn can_merge_time_slots(slots: &[TimeSlot]) -> bool {
-    if slots.len() <= 1 {
-        return true; // Single slot or empty list is already "merged"
-    }
-
-    // All slots must be for the same room
-    let first_room = &slots[0].item_name;
-    if !slots.iter().all(|slot| &slot.item_name == first_room) {
-        return false;
-    }
-
-    // Sort time slots by start_time
-    let mut sorted_slots = slots.to_vec();
-    sorted_slots.sort_by_key(|slot| slot.start_time);
-
-    // Check for continuity (end time of one slot equals start time of the next)
-    for i in 0..sorted_slots.len() - 1 {
-        // If there's a gap or overlap, we can't merge
-        if sorted_slots[i].end_time != sorted_slots[i + 1].start_time {
-            return false;
-        }
-    }
-
-    true
-}
 
 // Attempt to find mergeable groups in time slots
 pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
@@ -143,7 +116,6 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
 // Create a meeting with the given time slot
 pub async fn create_meeting_with_time_slot(
     client: &TencentMeetingClient,
-    _user_field_name: &str,
     dept_field_name: &str,
     form_submission: &FormSubmission,
     time_slot: &TimeSlot,
@@ -251,7 +223,6 @@ pub async fn create_meeting_with_time_slot(
 // Create a merged meeting from multiple time slots
 pub async fn create_merged_meeting(
     client: &TencentMeetingClient,
-    _user_field_name: &str,
     dept_field_name: &str,
     form_submission: &FormSubmission,
     time_slots: &[TimeSlot],

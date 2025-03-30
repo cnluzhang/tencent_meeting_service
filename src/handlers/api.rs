@@ -167,95 +167,120 @@ pub async fn handle_form_submission(
             form_submission.entry.token
         );
 
-        // Look up meeting ID and room ID in database
+        // Look up meeting IDs and room IDs in database
         match state.database.cancel_meeting(&form_submission.entry.token) {
-            Ok(Some((meeting_id, room_id))) => {
+            Ok(cancelled_meetings) if !cancelled_meetings.is_empty() => {
                 info!(
-                    "Found meeting to cancel with ID: {} and room ID: {}",
-                    meeting_id, room_id
+                    "Found {} meetings to cancel with token: {}",
+                    cancelled_meetings.len(), form_submission.entry.token
                 );
 
                 // Check if we're in simulation mode
-                if state.skip_meeting_creation || meeting_id.starts_with("simulation-") {
-                    info!("Simulation mode: Meeting {} with room {} marked as cancelled in database", 
-                        meeting_id, room_id);
+                if state.skip_meeting_creation || cancelled_meetings.iter().any(|(id, _)| id.starts_with("simulation-")) {
+                    let meeting_ids: Vec<String> = cancelled_meetings.iter().map(|(id, _)| id.clone()).collect();
+                    info!("Simulation mode: {} meetings marked as cancelled in database: {:?}", 
+                        cancelled_meetings.len(), meeting_ids);
                     return Ok(Json(WebhookResponse {
                         success: true,
-                        message: format!("Simulation: Meeting {} cancelled and room {} released successfully", 
-                            meeting_id, room_id),
+                        message: format!("Simulation: {} meetings cancelled successfully", 
+                            cancelled_meetings.len()),
                         meetings_count: 0,
                         meetings: Vec::new(),
                     }));
                 }
 
-                // Normal flow for real meetings - Step 1: Release the meeting room
-                let release_request = ReleaseRoomsRequest {
-                    operator_id: state.client.get_operator_id().to_string(),
-                    operator_id_type: 1,
-                    meeting_room_id_list: vec![room_id.clone()],
-                };
+                // Track cancellation results
+                let mut successful_cancellations = 0;
+                let mut failed_cancellations = 0;
 
-                // Call the Tencent Meeting API to release the room
-                match state
-                    .client
-                    .release_rooms(&meeting_id, &release_request)
-                    .await
-                {
-                    Ok(_) => {
-                        info!(
-                            "Successfully released room {} for meeting {}",
-                            room_id, meeting_id
-                        );
+                // Process each meeting that needs to be cancelled
+                for (meeting_id, room_id) in &cancelled_meetings {
+                    // Step 1: Release the meeting room
+                    let release_request = ReleaseRoomsRequest {
+                        operator_id: state.client.get_operator_id().to_string(),
+                        operator_id_type: 1,
+                        meeting_room_id_list: vec![room_id.clone()],
+                    };
 
-                        // Step 2: Cancel the meeting
-                        let cancel_request = CancelMeetingRequest {
-                            userid: state.client.get_operator_id().to_string(),
-                            instanceid: 32,
-                            reason_code: 1, // Cancellation reason code
-                            meeting_type: None,
-                            sub_meeting_id: None,
-                            reason_detail: Some("Form submission cancelled".to_string()),
-                        };
+                    // Call the Tencent Meeting API to release the room
+                    match state
+                        .client
+                        .release_rooms(meeting_id, &release_request)
+                        .await
+                    {
+                        Ok(_) => {
+                            info!(
+                                "Successfully released room {} for meeting {}",
+                                room_id, meeting_id
+                            );
 
-                        // Call the Tencent Meeting API to cancel the meeting
-                        match state
-                            .client
-                            .cancel_meeting(&meeting_id, &cancel_request)
-                            .await
-                        {
-                            Ok(_) => {
-                                info!("Successfully cancelled meeting with ID: {}", meeting_id);
-                                return Ok(Json(WebhookResponse {
-                                    success: true,
-                                    message: format!(
-                                        "Meeting {} cancelled and room {} released successfully",
-                                        meeting_id, room_id
-                                    ),
-                                    meetings_count: 0,
-                                    meetings: Vec::new(),
-                                }));
-                            }
-                            Err(err) => {
-                                error!("Failed to cancel meeting: {}", err);
-                                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                            // Step 2: Cancel the meeting
+                            let cancel_request = CancelMeetingRequest {
+                                userid: state.client.get_operator_id().to_string(),
+                                instanceid: 32,
+                                reason_code: 1, // Cancellation reason code
+                                meeting_type: None,
+                                sub_meeting_id: None,
+                                reason_detail: Some("Form submission cancelled".to_string()),
+                            };
+
+                            // Call the Tencent Meeting API to cancel the meeting
+                            match state
+                                .client
+                                .cancel_meeting(meeting_id, &cancel_request)
+                                .await
+                            {
+                                Ok(_) => {
+                                    info!("Successfully cancelled meeting with ID: {}", meeting_id);
+                                    successful_cancellations += 1;
+                                }
+                                Err(err) => {
+                                    error!("Failed to cancel meeting {}: {}", meeting_id, err);
+                                    failed_cancellations += 1;
+                                }
                             }
                         }
-                    }
-                    Err(err) => {
-                        error!("Failed to release room: {}", err);
-                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                        Err(err) => {
+                            error!("Failed to release room {} for meeting {}: {}", room_id, meeting_id, err);
+                            failed_cancellations += 1;
+                        }
                     }
                 }
+                
+                // Return summary of all cancellations
+                if failed_cancellations == 0 {
+                    info!("Successfully cancelled all {} meetings", successful_cancellations);
+                    return Ok(Json(WebhookResponse {
+                        success: true,
+                        message: format!(
+                            "Successfully cancelled {} meetings",
+                            successful_cancellations
+                        ),
+                        meetings_count: 0,
+                        meetings: Vec::new(),
+                    }));
+                } else {
+                    warn!("Cancelled {} meetings, but {} failed", successful_cancellations, failed_cancellations);
+                    return Ok(Json(WebhookResponse {
+                        success: successful_cancellations > 0,
+                        message: format!(
+                            "Cancelled {} meetings, but {} failed",
+                            successful_cancellations, failed_cancellations
+                        ),
+                        meetings_count: 0,
+                        meetings: Vec::new(),
+                    }));
+                }
             }
-            Ok(None) => {
+            Ok(_) => {
                 warn!(
-                    "No active meeting found with token: {}",
+                    "No active meetings found with token: {}",
                     form_submission.entry.token
                 );
                 return Ok(Json(WebhookResponse {
                     success: false,
                     message: format!(
-                        "No active meeting found with token: {}",
+                        "No active meetings found with token: {}",
                         form_submission.entry.token
                     ),
                     meetings_count: 0,
@@ -263,7 +288,7 @@ pub async fn handle_form_submission(
                 }));
             }
             Err(e) => {
-                error!("Failed to lookup meeting for cancellation: {}", e);
+                error!("Failed to lookup meetings for cancellation: {}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
@@ -334,12 +359,13 @@ pub async fn handle_form_submission(
                 success: true,
             };
 
-            // Store directly in database
-            if let Err(e) = state.database.store_meeting(
+            // Store directly in database with merged time slot info
+            if let Err(e) = state.database.store_merged_meeting(
                 &form_submission,
                 "simulation-merged-meeting",
                 &time_slots[0].item_name,
                 &state.default_room_id,
+                &time_slots,
             ) {
                 error!("Failed to store simulated meeting record: {}", e);
             }
@@ -349,7 +375,6 @@ pub async fn handle_form_submission(
             // Normal flow - create the actual merged meeting
             match create_merged_meeting(
                 &state.client,
-                &state.user_field_name,
                 &state.dept_field_name,
                 &form_submission,
                 &time_slots,
@@ -404,11 +429,12 @@ pub async fn handle_form_submission(
                         }
 
                         // Store meeting info in database with room ID (whether or not room was booked)
-                        if let Err(e) = state.database.store_meeting(
+                        if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             meeting_id,
                             &result.room_name,
                             &state.default_room_id,
+                            &time_slots,
                         ) {
                             error!("Failed to store meeting record: {}", e);
                             // Continue processing even if database storage fails
@@ -459,12 +485,13 @@ pub async fn handle_form_submission(
                             success: true,
                         };
 
-                        // Store directly in database
-                        if let Err(e) = state.database.store_meeting(
+                        // Store directly in database with merged time slot info
+                        if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             &format!("simulation-merged-meeting-{}", i),
                             &group[0].item_name,
                             &state.default_room_id,
+                            group,
                         ) {
                             error!("Failed to store simulated merged meeting record: {}", e);
                         }
@@ -475,7 +502,6 @@ pub async fn handle_form_submission(
                         // Normal flow - create the merged meeting
                         match create_merged_meeting(
                             &state.client,
-                            &state.user_field_name,
                             &state.dept_field_name,
                             &form_submission,
                             group,
@@ -519,12 +545,13 @@ pub async fn handle_form_submission(
                                         info!("Room booking disabled: Skipping room booking for meeting {}", meeting_id);
                                     }
 
-                                    // Always store meeting in database
-                                    if let Err(e) = state.database.store_meeting(
+                                    // Always store meeting in database with merged time slot info
+                                    if let Err(e) = state.database.store_merged_meeting(
                                         &form_submission,
                                         meeting_id,
                                         &result.room_name,
                                         &state.default_room_id,
+                                        group,
                                     ) {
                                         error!("Failed to store meeting record: {}", e);
                                         // Continue processing even if database storage fails
@@ -563,12 +590,13 @@ pub async fn handle_form_submission(
                             success: true,
                         };
 
-                        // Store directly in database
-                        if let Err(e) = state.database.store_meeting(
+                        // Store directly in database with specific time slot
+                        if let Err(e) = state.database.store_meeting_with_time_slot(
                             &form_submission,
                             &format!("simulation-meeting-id-{}", i),
                             &group[0].item_name,
                             &state.default_room_id,
+                            &group[0],
                         ) {
                             error!("Failed to store simulated meeting record: {}", e);
                         }
@@ -579,7 +607,6 @@ pub async fn handle_form_submission(
                         // Normal flow - create the meeting
                         match create_meeting_with_time_slot(
                             &state.client,
-                            &state.user_field_name,
                             &state.dept_field_name,
                             &form_submission,
                             &group[0],
@@ -623,12 +650,13 @@ pub async fn handle_form_submission(
                                         info!("Room booking disabled: Skipping room booking for meeting {}", meeting_id);
                                     }
 
-                                    // Always store in database
-                                    if let Err(e) = state.database.store_meeting(
+                                    // Always store in database with specific time slot
+                                    if let Err(e) = state.database.store_meeting_with_time_slot(
                                         &form_submission,
                                         meeting_id,
                                         &result.room_name,
                                         &state.default_room_id,
+                                        &group[0],
                                     ) {
                                         error!("Failed to store meeting record: {}", e);
                                         // Continue processing even if database storage fails
