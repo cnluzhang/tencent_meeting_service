@@ -395,6 +395,40 @@ impl TencentMeetingClient {
         )
     }
 
+    /// Build a request with all required headers
+    fn build_request(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        timestamp: i64,
+        nonce: &str,
+        signature: &str,
+        body: Option<String>,
+    ) -> reqwest::RequestBuilder {
+        let mut request = self
+            .client
+            .request(method, url)
+            .header("Content-Type", "application/json")
+            .header("X-TC-Key", &self.secret_id)
+            .header("X-TC-Timestamp", timestamp.to_string())
+            .header("X-TC-Nonce", nonce)
+            .header("X-TC-Signature", signature)
+            .header("AppId", &self.app_id)
+            .header("X-TC-Registered", "1");
+
+        // Add SdkId header if not empty
+        if !self.sdk_id.is_empty() {
+            request = request.header("SdkId", &self.sdk_id);
+        }
+
+        // Add request body if provided
+        if let Some(body_str) = body {
+            request = request.body(body_str);
+        }
+
+        request
+    }
+
     /// List meeting rooms from the Tencent Meeting API
     pub async fn list_rooms(
         &self,
@@ -419,24 +453,16 @@ impl TencentMeetingClient {
         info!("Making request to list meeting rooms");
         debug!("API URL: {}", url);
 
-        // Build the request with all required headers
-        let mut request = self
-            .client
-            .get(&url)
-            .header("Content-Type", "application/json")
-            .header("X-TC-Key", &self.secret_id)
-            .header("X-TC-Timestamp", timestamp.to_string())
-            .header("X-TC-Nonce", &nonce)
-            .header("X-TC-Signature", signature)
-            .header("AppId", &self.app_id)
-            .header("X-TC-Registered", "1");
+        // Build and send the request
+        let request = self.build_request(
+            reqwest::Method::GET,
+            &url,
+            timestamp,
+            &nonce,
+            &signature,
+            None,
+        );
 
-        // Add SdkId header if not empty
-        if !self.sdk_id.is_empty() {
-            request = request.header("SdkId", &self.sdk_id);
-        }
-
-        // Send the request
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
@@ -453,14 +479,11 @@ impl TencentMeetingClient {
             error!("This could be due to incorrect credentials or API parameters");
         }
 
-        // Parse the response JSON
-        match serde_json::from_str::<MeetingRoomsResponse>(&response_text) {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                error!("Failed to parse response JSON: {}", e);
-                Err(Box::new(e))
-            }
-        }
+        // Parse the response JSON using the ? operator for cleaner error handling
+        serde_json::from_str::<MeetingRoomsResponse>(&response_text).map_err(|e| {
+            error!("Failed to parse response JSON: {}", e);
+            Box::new(e) as Box<dyn Error + Send + Sync>
+        })
     }
 
     /// Create a new meeting using the Tencent Meeting API
@@ -477,8 +500,12 @@ impl TencentMeetingClient {
         let mut request_to_send = meeting_request.clone();
         request_to_send._type = meeting_request.type_; // Copy the value from type_ to _type for serialization
 
-        let request_body =
-            serde_json::to_string(&request_to_send).expect("Failed to serialize meeting request");
+        let request_body = serde_json::to_string(&request_to_send).map_err(|e| {
+            Box::<dyn Error + Send + Sync>::from(format!(
+                "Failed to serialize meeting request: {}",
+                e
+            ))
+        })?;
 
         let timestamp = TencentAuth::get_timestamp();
         let nonce = TencentAuth::generate_nonce();
@@ -489,25 +516,16 @@ impl TencentMeetingClient {
         debug!("API URL: {}", url);
         debug!("Request body: {}", request_body);
 
-        // Build the request with all required headers
-        let mut request = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .header("X-TC-Key", &self.secret_id)
-            .header("X-TC-Timestamp", timestamp.to_string())
-            .header("X-TC-Nonce", &nonce)
-            .header("X-TC-Signature", signature)
-            .header("AppId", &self.app_id)
-            .header("X-TC-Registered", "1")
-            .body(request_body);
+        // Build and send the request
+        let request = self.build_request(
+            reqwest::Method::POST,
+            &url,
+            timestamp,
+            &nonce,
+            &signature,
+            Some(request_body),
+        );
 
-        // Add SdkId header if not empty
-        if !self.sdk_id.is_empty() {
-            request = request.header("SdkId", &self.sdk_id);
-        }
-
-        // Send the request
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
@@ -522,13 +540,10 @@ impl TencentMeetingClient {
             error!("Response body: {}", response_text);
         }
 
-        match serde_json::from_str::<CreateMeetingResponse>(&response_text) {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                error!("Failed to parse response JSON: {}", e);
-                Err(Box::new(e))
-            }
-        }
+        serde_json::from_str::<CreateMeetingResponse>(&response_text).map_err(|e| {
+            error!("Failed to parse response JSON: {}", e);
+            Box::new(e) as Box<dyn Error + Send + Sync>
+        })
     }
 
     /// Cancel a meeting using the Tencent Meeting API

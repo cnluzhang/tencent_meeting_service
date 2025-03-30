@@ -441,20 +441,14 @@ impl DatabaseService {
             .lock()
             .map_err(|e| format!("Failed to acquire mutex: {}", e))?;
 
-        // If file doesn't exist yet, return None
+        // If file doesn't exist, return None early
         if !Path::new(&self.csv_path).exists() {
             return Ok(None);
         }
 
-        let file = match File::open(&self.csv_path) {
-            Ok(file) => file,
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    return Ok(None);
-                }
-                return Err(format!("Failed to open database file: {}", e));
-            }
-        };
+        // Open file with better error handling
+        let file = File::open(&self.csv_path)
+            .map_err(|e| format!("Failed to open database file: {}", e))?;
 
         let mut reader = ReaderBuilder::new().has_headers(true).from_reader(file);
 
@@ -462,9 +456,13 @@ impl DatabaseService {
         for result in reader.records() {
             let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
 
-            if record.get(0) == Some(entry_token) && record.get(7) == Some(status) {
-                // Convert to MeetingRecord
-                return Ok(Some(self.string_record_to_meeting_record(&record)?));
+            // Use Option combinators to check if we have a match
+            let token_matches = record.get(0).map_or(false, |val| val == entry_token);
+            let status_matches = record.get(7).map_or(false, |val| val == status);
+
+            if token_matches && status_matches {
+                // Convert to MeetingRecord and return early
+                return self.string_record_to_meeting_record(&record).map(Some);
             }
         }
 
@@ -524,46 +522,41 @@ impl DatabaseService {
         &self,
         record: &StringRecord,
     ) -> Result<MeetingRecord, String> {
-        if record.len() < 12 {
-            // For backward compatibility with old records without operator fields
-            if record.len() == 12 {
-                return Ok(MeetingRecord {
-                    entry_token: record.get(0).unwrap_or_default().to_string(),
-                    form_id: record.get(1).unwrap_or_default().to_string(),
-                    form_name: record.get(2).unwrap_or_default().to_string(),
-                    subject: record.get(3).unwrap_or_default().to_string(),
-                    room_name: record.get(4).unwrap_or_default().to_string(),
-                    scheduled_at: record.get(5).unwrap_or_default().to_string(),
-                    scheduled_label: record.get(6).unwrap_or_default().to_string(),
-                    status: record.get(7).unwrap_or_default().to_string(),
-                    meeting_id: record.get(8).unwrap_or_default().to_string(),
-                    room_id: record.get(9).unwrap_or_default().to_string(),
-                    created_at: record.get(10).unwrap_or_default().to_string(),
-                    cancelled_at: record.get(11).unwrap_or_default().to_string(),
-                    // Default values for backward compatibility
-                    operator_name: "default".to_string(),
-                    operator_id: "admin".to_string(),
-                });
-            }
+        // Helper function to get field with better error context
+        let get_field = |idx: usize, name: &str| -> Result<String, String> {
+            Ok(record.get(idx).map(|s| s.to_string()).unwrap_or_else(|| {
+                // For logging only - not a fatal error
+                if idx < record.len() {
+                    warn!("Field {} at index {} is empty", name, idx);
+                }
+                String::new()
+            }))
+        };
 
-            return Err(format!("Invalid record length: {}", record.len()));
+        // Ensure record has at least the required fields
+        if record.len() < 14 {
+            return Err(format!(
+                "Invalid record length: {}. Expected at least 14 fields.",
+                record.len()
+            ));
         }
 
+        // Create record with operator fields
         Ok(MeetingRecord {
-            entry_token: record.get(0).unwrap_or_default().to_string(),
-            form_id: record.get(1).unwrap_or_default().to_string(),
-            form_name: record.get(2).unwrap_or_default().to_string(),
-            subject: record.get(3).unwrap_or_default().to_string(),
-            room_name: record.get(4).unwrap_or_default().to_string(),
-            scheduled_at: record.get(5).unwrap_or_default().to_string(),
-            scheduled_label: record.get(6).unwrap_or_default().to_string(),
-            status: record.get(7).unwrap_or_default().to_string(),
-            meeting_id: record.get(8).unwrap_or_default().to_string(),
-            room_id: record.get(9).unwrap_or_default().to_string(),
-            created_at: record.get(10).unwrap_or_default().to_string(),
-            cancelled_at: record.get(11).unwrap_or_default().to_string(),
-            operator_name: record.get(12).unwrap_or_default().to_string(),
-            operator_id: record.get(13).unwrap_or_default().to_string(),
+            entry_token: get_field(0, "entry_token")?,
+            form_id: get_field(1, "form_id")?,
+            form_name: get_field(2, "form_name")?,
+            subject: get_field(3, "subject")?,
+            room_name: get_field(4, "room_name")?,
+            scheduled_at: get_field(5, "scheduled_at")?,
+            scheduled_label: get_field(6, "scheduled_label")?,
+            status: get_field(7, "status")?,
+            meeting_id: get_field(8, "meeting_id")?,
+            room_id: get_field(9, "room_id")?,
+            created_at: get_field(10, "created_at")?,
+            cancelled_at: get_field(11, "cancelled_at")?,
+            operator_name: get_field(12, "operator_name")?,
+            operator_id: get_field(13, "operator_id")?,
         })
     }
 
