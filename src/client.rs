@@ -556,36 +556,31 @@ impl TencentMeetingClient {
         let uri = format!("/v1/meetings/{}/cancel", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
 
-        let request_body = serde_json::to_string(&cancel_request)
-            .expect("Failed to serialize cancellation request");
+        let request_body = serde_json::to_string(&cancel_request).map_err(|e| {
+            Box::<dyn Error + Send + Sync>::from(format!(
+                "Failed to serialize cancellation request: {}",
+                e
+            ))
+        })?;
 
         let timestamp = TencentAuth::get_timestamp();
         let nonce = TencentAuth::generate_nonce();
-
         let signature = self.generate_signature(method, &uri, timestamp, &nonce, &request_body);
 
         info!("Making request to cancel meeting {}", meeting_id);
         debug!("API URL: {}", url);
+        debug!("Request body: {}", request_body);
 
-        // Build the request with all required headers
-        let mut request = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .header("X-TC-Key", &self.secret_id)
-            .header("X-TC-Timestamp", timestamp.to_string())
-            .header("X-TC-Nonce", &nonce)
-            .header("X-TC-Signature", signature)
-            .header("AppId", &self.app_id)
-            .header("X-TC-Registered", "1")
-            .body(request_body);
+        // Build and send the request
+        let request = self.build_request(
+            reqwest::Method::POST,
+            &url,
+            timestamp,
+            &nonce,
+            &signature,
+            Some(request_body),
+        );
 
-        // Add SdkId header if not empty
-        if !self.sdk_id.is_empty() {
-            request = request.header("SdkId", &self.sdk_id);
-        }
-
-        // Send the request
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
@@ -614,37 +609,31 @@ impl TencentMeetingClient {
         let uri = format!("/v1/meetings/{}/book-rooms", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
 
-        let request_body =
-            serde_json::to_string(&book_request).expect("Failed to serialize book rooms request");
+        let request_body = serde_json::to_string(&book_request).map_err(|e| {
+            Box::<dyn Error + Send + Sync>::from(format!(
+                "Failed to serialize book rooms request: {}",
+                e
+            ))
+        })?;
 
         let timestamp = TencentAuth::get_timestamp();
         let nonce = TencentAuth::generate_nonce();
-
         let signature = self.generate_signature(method, &uri, timestamp, &nonce, &request_body);
 
         info!("Making request to book rooms for meeting {}", meeting_id);
         debug!("API URL: {}", url);
         debug!("Request body: {}", request_body);
 
-        // Build the request with all required headers
-        let mut request = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .header("X-TC-Key", &self.secret_id)
-            .header("X-TC-Timestamp", timestamp.to_string())
-            .header("X-TC-Nonce", &nonce)
-            .header("X-TC-Signature", signature)
-            .header("AppId", &self.app_id)
-            .header("X-TC-Registered", "1")
-            .body(request_body);
+        // Build and send the request
+        let request = self.build_request(
+            reqwest::Method::POST,
+            &url,
+            timestamp,
+            &nonce,
+            &signature,
+            Some(request_body),
+        );
 
-        // Add SdkId header if not empty
-        if !self.sdk_id.is_empty() {
-            request = request.header("SdkId", &self.sdk_id);
-        }
-
-        // Send the request
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
@@ -673,37 +662,31 @@ impl TencentMeetingClient {
         let uri = format!("/v1/meetings/{}/release-rooms", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
 
-        let request_body = serde_json::to_string(&release_request)
-            .expect("Failed to serialize release rooms request");
+        let request_body = serde_json::to_string(&release_request).map_err(|e| {
+            Box::<dyn Error + Send + Sync>::from(format!(
+                "Failed to serialize release rooms request: {}",
+                e
+            ))
+        })?;
 
         let timestamp = TencentAuth::get_timestamp();
         let nonce = TencentAuth::generate_nonce();
-
         let signature = self.generate_signature(method, &uri, timestamp, &nonce, &request_body);
 
         info!("Making request to release rooms for meeting {}", meeting_id);
         debug!("API URL: {}", url);
         debug!("Request body: {}", request_body);
 
-        // Build the request with all required headers
-        let mut request = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .header("X-TC-Key", &self.secret_id)
-            .header("X-TC-Timestamp", timestamp.to_string())
-            .header("X-TC-Nonce", &nonce)
-            .header("X-TC-Signature", signature)
-            .header("AppId", &self.app_id)
-            .header("X-TC-Registered", "1")
-            .body(request_body);
+        // Build and send the request
+        let request = self.build_request(
+            reqwest::Method::POST,
+            &url,
+            timestamp,
+            &nonce,
+            &signature,
+            Some(request_body),
+        );
 
-        // Add SdkId header if not empty
-        if !self.sdk_id.is_empty() {
-            request = request.header("SdkId", &self.sdk_id);
-        }
-
-        // Send the request
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
