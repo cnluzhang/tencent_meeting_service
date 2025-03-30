@@ -7,12 +7,12 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 
 use crate::client::{
-    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse, 
+    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse,
     ReleaseRoomsRequest, TencentMeetingClient,
 };
 use crate::models::common::PaginationParams;
 use crate::models::form::FormSubmission;
-use crate::models::meeting::WebhookResponse;
+use crate::models::meeting::{MeetingResult, WebhookResponse};
 use crate::services::database::DatabaseService;
 use crate::services::time_slots::{
     create_meeting_with_time_slot, create_merged_meeting, find_mergeable_groups, parse_time_slot,
@@ -26,6 +26,8 @@ pub struct AppState {
     pub dept_field_name: String,
     pub database: Arc<DatabaseService>,
     pub default_room_id: String,
+    pub skip_meeting_creation: bool, // Toggle to only store in CSV without creating meetings
+    pub skip_room_booking: bool,     // Toggle to create meetings but not book rooms
 }
 
 // List meeting rooms endpoint
@@ -38,135 +40,155 @@ pub async fn list_meeting_rooms(
         params.page, params.page_size
     );
 
-    match state.client.list_rooms(params.page, params.page_size).await {
+    // Fetch meeting rooms from the Tencent Meeting API
+    match state
+        .client
+        .list_rooms(params.page, params.page_size)
+        .await
+    {
         Ok(response) => {
             info!(
                 "Successfully retrieved {} meeting rooms",
                 response.meeting_room_list.len()
             );
+
             Ok(Json(response))
         }
-        Err(err) => {
-            error!("Failed to retrieve meeting rooms: {}", err);
+        Err(e) => {
+            error!("Failed to retrieve meeting rooms: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-// Create meeting endpoint
+// Create a new meeting endpoint
 pub async fn create_meeting(
     State(state): State<Arc<AppState>>,
-    ExtractJson(meeting_request): ExtractJson<CreateMeetingRequest>,
+    ExtractJson(request): ExtractJson<CreateMeetingRequest>,
 ) -> Result<Json<CreateMeetingResponse>, StatusCode> {
     info!(
-        "Received request to create meeting: {}",
-        meeting_request.subject
+        "Received request to create new meeting: {}",
+        request.subject
     );
 
-    match state.client.create_meeting(&meeting_request).await {
+    // Call the Tencent Meeting API to create the meeting
+    match state.client.create_meeting(&request).await {
         Ok(response) => {
-            info!(
-                "Successfully created {} meetings",
-                response.meeting_info_list.len()
-            );
+            info!("Successfully created {} meetings", response.meeting_number);
             Ok(Json(response))
         }
-        Err(err) => {
-            error!("Failed to create meeting: {}", err);
+        Err(e) => {
+            error!("Failed to create meeting: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-// Cancel meeting endpoint
+// Cancel an existing meeting endpoint
 pub async fn cancel_meeting(
     State(state): State<Arc<AppState>>,
     Path(meeting_id): Path<String>,
-    ExtractJson(cancel_request): ExtractJson<CancelMeetingRequest>,
+    ExtractJson(request): ExtractJson<CancelMeetingRequest>,
 ) -> Result<StatusCode, StatusCode> {
     info!("Received request to cancel meeting: {}", meeting_id);
 
-    match state
-        .client
-        .cancel_meeting(&meeting_id, &cancel_request)
-        .await
-    {
+    // Call the Tencent Meeting API to cancel the meeting
+    match state.client.cancel_meeting(&meeting_id, &request).await {
         Ok(_) => {
-            info!("Successfully cancelled meeting {}", meeting_id);
+            info!("Successfully cancelled meeting: {}", meeting_id);
             Ok(StatusCode::OK)
         }
-        Err(err) => {
-            error!("Failed to cancel meeting: {}", err);
+        Err(e) => {
+            error!("Failed to cancel meeting: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-// Book rooms for a meeting endpoint
+// Book meeting rooms for a meeting
 pub async fn book_rooms(
     State(state): State<Arc<AppState>>,
     Path(meeting_id): Path<String>,
-    ExtractJson(book_request): ExtractJson<BookRoomsRequest>,
+    ExtractJson(request): ExtractJson<BookRoomsRequest>,
 ) -> Result<StatusCode, StatusCode> {
     info!("Received request to book rooms for meeting: {}", meeting_id);
-    info!("Room IDs to book: {:?}", book_request.meeting_room_id_list);
 
-    match state.client.book_rooms(&meeting_id, &book_request).await {
+    // Call the Tencent Meeting API to book rooms
+    match state.client.book_rooms(&meeting_id, &request).await {
         Ok(_) => {
-            info!("Successfully booked rooms for meeting {}", meeting_id);
+            info!("Successfully booked rooms for meeting: {}", meeting_id);
             Ok(StatusCode::OK)
         }
-        Err(err) => {
-            error!("Failed to book rooms: {}", err);
+        Err(e) => {
+            error!("Failed to book rooms: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-// Release rooms for a meeting endpoint
+// Release meeting rooms for a meeting
 pub async fn release_rooms(
     State(state): State<Arc<AppState>>,
     Path(meeting_id): Path<String>,
-    ExtractJson(release_request): ExtractJson<ReleaseRoomsRequest>,
+    ExtractJson(request): ExtractJson<ReleaseRoomsRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    info!("Received request to release rooms for meeting: {}", meeting_id);
-    info!("Room IDs to release: {:?}", release_request.meeting_room_id_list);
+    info!(
+        "Received request to release rooms for meeting: {}",
+        meeting_id
+    );
 
-    match state.client.release_rooms(&meeting_id, &release_request).await {
+    // Call the Tencent Meeting API to release rooms
+    match state.client.release_rooms(&meeting_id, &request).await {
         Ok(_) => {
-            info!("Successfully released rooms for meeting {}", meeting_id);
+            info!("Successfully released rooms for meeting: {}", meeting_id);
             Ok(StatusCode::OK)
         }
-        Err(err) => {
-            error!("Failed to release rooms: {}", err);
+        Err(e) => {
+            error!("Failed to release rooms: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
 
-// Form submission webhook handler
+// Form webhook endpoint for meeting creation
 pub async fn handle_form_submission(
     State(state): State<Arc<AppState>>,
     ExtractJson(form_submission): ExtractJson<FormSubmission>,
 ) -> Result<Json<WebhookResponse>, StatusCode> {
-    info!(
-        "Received form submission for form: {} ({})",
-        form_submission.form_name, form_submission.form
-    );
-
-    // Check if the status indicates a cancellation
-    if form_submission.entry.reservation_status_fsf_field == "已取消" {
+    // Check if this is a cancellation request
+    if form_submission
+        .entry
+        .reservation_status_fsf_field
+        .to_lowercase()
+        .contains("取消")
+    {
         info!(
-            "Processing cancellation request for entry token: {}",
+            "Form submission with token {} is a cancellation request",
             form_submission.entry.token
         );
 
-        // Look up meeting ID and room ID in database 
+        // Look up meeting ID and room ID in database
         match state.database.cancel_meeting(&form_submission.entry.token) {
             Ok(Some((meeting_id, room_id))) => {
-                info!("Found meeting to cancel with ID: {} and room ID: {}", meeting_id, room_id);
+                info!(
+                    "Found meeting to cancel with ID: {} and room ID: {}",
+                    meeting_id, room_id
+                );
 
-                // Step 1: Release the meeting room
+                // Check if we're in simulation mode
+                if state.skip_meeting_creation || meeting_id.starts_with("simulation-") {
+                    info!("Simulation mode: Meeting {} with room {} marked as cancelled in database", 
+                        meeting_id, room_id);
+                    return Ok(Json(WebhookResponse {
+                        success: true,
+                        message: format!("Simulation: Meeting {} cancelled and room {} released successfully", 
+                            meeting_id, room_id),
+                        meetings_count: 0,
+                        meetings: Vec::new(),
+                    }));
+                }
+
+                // Normal flow for real meetings - Step 1: Release the meeting room
                 let release_request = ReleaseRoomsRequest {
                     operator_id: state.client.get_operator_id().to_string(),
                     operator_id_type: 1,
@@ -174,10 +196,17 @@ pub async fn handle_form_submission(
                 };
 
                 // Call the Tencent Meeting API to release the room
-                match state.client.release_rooms(&meeting_id, &release_request).await {
+                match state
+                    .client
+                    .release_rooms(&meeting_id, &release_request)
+                    .await
+                {
                     Ok(_) => {
-                        info!("Successfully released room {} for meeting {}", room_id, meeting_id);
-                        
+                        info!(
+                            "Successfully released room {} for meeting {}",
+                            room_id, meeting_id
+                        );
+
                         // Step 2: Cancel the meeting
                         let cancel_request = CancelMeetingRequest {
                             userid: state.client.get_operator_id().to_string(),
@@ -189,13 +218,19 @@ pub async fn handle_form_submission(
                         };
 
                         // Call the Tencent Meeting API to cancel the meeting
-                        match state.client.cancel_meeting(&meeting_id, &cancel_request).await {
+                        match state
+                            .client
+                            .cancel_meeting(&meeting_id, &cancel_request)
+                            .await
+                        {
                             Ok(_) => {
                                 info!("Successfully cancelled meeting with ID: {}", meeting_id);
                                 return Ok(Json(WebhookResponse {
                                     success: true,
-                                    message: format!("Meeting {} cancelled and room {} released successfully", 
-                                        meeting_id, room_id),
+                                    message: format!(
+                                        "Meeting {} cancelled and room {} released successfully",
+                                        meeting_id, room_id
+                                    ),
                                     meetings_count: 0,
                                     meetings: Vec::new(),
                                 }));
@@ -213,14 +248,14 @@ pub async fn handle_form_submission(
                 }
             }
             Ok(None) => {
-                error!(
-                    "No active meeting found for token: {}",
+                warn!(
+                    "No active meeting found with token: {}",
                     form_submission.entry.token
                 );
                 return Ok(Json(WebhookResponse {
                     success: false,
                     message: format!(
-                        "No active meeting found for token: {}",
+                        "No active meeting found with token: {}",
                         form_submission.entry.token
                     ),
                     meetings_count: 0,
@@ -228,22 +263,30 @@ pub async fn handle_form_submission(
                 }));
             }
             Err(e) => {
-                error!("Database error when looking up meeting to cancel: {}", e);
+                error!("Failed to lookup meeting for cancellation: {}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
     }
 
-    // For regular meeting creation requests
-    // Check if we have at least one scheduled item
-    if form_submission.entry.field_1.is_empty() {
-        error!("Form submission has no scheduled items");
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    // This is a reservation request, not a cancellation
+    info!("Processing form submission for new meeting creation");
 
-    // Parse all time slots
+    // Extract time slots from the form submission
+    let field1 = &form_submission.entry.field_1;
+
+    info!("Form contains {} time slot entries", field1.len());
+
+    // Parse all time slots from the form
     let mut time_slots = Vec::new();
-    for reservation in &form_submission.entry.field_1 {
+    for (i, reservation) in field1.iter().enumerate() {
+        info!(
+            "Processing time slot {}: {}",
+            i + 1,
+            reservation.scheduled_label
+        );
+
+        // Parse the time slot
         match parse_time_slot(reservation) {
             Ok(slot) => time_slots.push(slot),
             Err(e) => {
@@ -268,57 +311,117 @@ pub async fn handle_form_submission(
     // If there's only one group and it includes all slots, we can fully merge
     if mergeable_groups.len() == 1 && mergeable_groups[0].len() == time_slots.len() {
         info!("All time slots can be merged into a single meeting");
-        match create_merged_meeting(
-            &state.client,
-            &state.user_field_name,
-            &state.dept_field_name,
-            &form_submission,
-            &time_slots,
-        )
-        .await
-        {
-            Ok(result) => {
-                all_successful = all_successful && result.success;
 
-                // Store in database if we have a meeting ID
-                if let Some(meeting_id) = &result.meeting_id {
-                    // Step 2: Book the meeting room
-                    let book_request = BookRoomsRequest {
-                        operator_id: state.client.get_operator_id().to_string(),
-                        operator_id_type: 1,
-                        meeting_room_id_list: vec![state.default_room_id.clone()],
-                        subject_visible: Some(true),
-                    };
-                    
-                    match state.client.book_rooms(meeting_id, &book_request).await {
-                        Ok(_) => {
-                            info!("Successfully booked room {} for meeting {}", 
-                                state.default_room_id, meeting_id);
-                            
-                            // Store meeting info in database with room ID
-                            if let Err(e) = state.database.store_meeting(
-                                &form_submission,
-                                meeting_id,
-                                &result.room_name,
-                                &state.default_room_id,
-                            ) {
-                                error!("Failed to store meeting record: {}", e);
-                                // Continue processing even if database storage fails
-                            }
-                        }
-                        Err(err) => {
-                            error!("Failed to book room for meeting: {}", err);
-                            // Continue with other operations, don't fail completely
+        // Check if we're in simulation mode (skip meeting creation)
+        if state.skip_meeting_creation {
+            // In simulation mode, store directly in database without creating a meeting
+            info!(
+                "Simulation mode: Storing form submission in database without creating a meeting"
+            );
+
+            // Create time slot labels
+            let time_slot_labels: Vec<String> = time_slots
+                .iter()
+                .map(|slot| slot.scheduled_label.clone())
+                .collect();
+
+            // Create a simulated result
+            let result = MeetingResult {
+                meeting_id: Some("simulation-merged-meeting".to_string()),
+                merged: true,
+                room_name: time_slots[0].item_name.clone(),
+                time_slots: time_slot_labels,
+                success: true,
+            };
+
+            // Store directly in database
+            if let Err(e) = state.database.store_meeting(
+                &form_submission,
+                "simulation-merged-meeting",
+                &time_slots[0].item_name,
+                &state.default_room_id,
+            ) {
+                error!("Failed to store simulated meeting record: {}", e);
+            }
+
+            meeting_results.push(result);
+        } else {
+            // Normal flow - create the actual merged meeting
+            match create_merged_meeting(
+                &state.client,
+                &state.user_field_name,
+                &state.dept_field_name,
+                &form_submission,
+                &time_slots,
+            )
+            .await
+            {
+                Ok(result) => {
+                    all_successful = all_successful && result.success;
+
+                    // Check if we're in simulation mode (skip meeting creation)
+                    if state.skip_meeting_creation {
+                        // In simulation mode, store directly in database without creating a meeting
+                        info!("Simulation mode: Storing form submission in database without creating a meeting");
+                        if let Err(e) = state.database.store_meeting(
+                            &form_submission,
+                            "simulation-meeting-id",
+                            &result.room_name,
+                            &state.default_room_id,
+                        ) {
+                            error!("Failed to store simulated meeting record: {}", e);
                         }
                     }
-                }
+                    // Store in database if we have a meeting ID
+                    else if let Some(meeting_id) = &result.meeting_id {
+                        // Check if we should book rooms
+                        if !state.skip_room_booking {
+                            // Book meeting room
+                            let book_request = BookRoomsRequest {
+                                operator_id: state.client.get_operator_id().to_string(),
+                                operator_id_type: 1,
+                                meeting_room_id_list: vec![state.default_room_id.clone()],
+                                subject_visible: Some(true),
+                            };
 
-                meeting_results.push(result);
-            }
-            Err(e) => {
-                error!("Failed to create merged meeting: {:?}", e);
-                // No need to set all_successful since we're returning immediately
-                return Err(e);
+                            match state.client.book_rooms(meeting_id, &book_request).await {
+                                Ok(_) => {
+                                    info!(
+                                        "Successfully booked room {} for meeting {}",
+                                        state.default_room_id, meeting_id
+                                    );
+                                }
+                                Err(err) => {
+                                    error!("Failed to book room for meeting: {}", err);
+                                    // Continue with other operations, don't fail completely
+                                }
+                            }
+                        } else {
+                            info!(
+                                "Room booking disabled: Skipping room booking for meeting {}",
+                                meeting_id
+                            );
+                        }
+
+                        // Store meeting info in database with room ID (whether or not room was booked)
+                        if let Err(e) = state.database.store_meeting(
+                            &form_submission,
+                            meeting_id,
+                            &result.room_name,
+                            &state.default_room_id,
+                        ) {
+                            error!("Failed to store meeting record: {}", e);
+                            // Continue processing even if database storage fails
+                        }
+                    }
+
+                    meeting_results.push(result);
+                }
+                Err(e) => {
+                    error!("Failed to create merged meeting: {:?}", e);
+                    // No need to set all_successful since we're returning immediately
+                    return Err(e);
+                }
             }
         }
     } else {
@@ -334,122 +437,215 @@ pub async fn handle_form_submission(
                         group.len(),
                         i + 1
                     );
-                    match create_merged_meeting(
-                        &state.client,
-                        &state.user_field_name,
-                        &state.dept_field_name,
-                        &form_submission,
-                        group,
-                    )
-                    .await
-                    {
-                        Ok(result) => {
-                            all_successful = all_successful && result.success;
 
-                            // Store in database if we have a meeting ID
-                            if let Some(meeting_id) = &result.meeting_id {
-                                // Step 2: Book the meeting room
-                                let book_request = BookRoomsRequest {
-                                    operator_id: state.client.get_operator_id().to_string(),
-                                    operator_id_type: 1,
-                                    meeting_room_id_list: vec![state.default_room_id.clone()],
-                                    subject_visible: Some(true),
-                                };
-                                
-                                match state.client.book_rooms(meeting_id, &book_request).await {
-                                    Ok(_) => {
-                                        info!("Successfully booked room {} for meeting {}", 
-                                            state.default_room_id, meeting_id);
-                                        
-                                        // Store meeting info in database with room ID
-                                        if let Err(e) = state.database.store_meeting(
-                                            &form_submission,
-                                            meeting_id,
-                                            &result.room_name,
-                                            &state.default_room_id,
-                                        ) {
-                                            error!("Failed to store meeting record: {}", e);
-                                            // Continue processing even if database storage fails
+                    // Check if we're in simulation mode
+                    if state.skip_meeting_creation {
+                        info!(
+                            "Simulation mode: Storing merged time slots without creating a meeting"
+                        );
+
+                        // Create simulated time slot labels
+                        let time_slot_labels: Vec<String> = group
+                            .iter()
+                            .map(|slot| slot.scheduled_label.clone())
+                            .collect();
+
+                        // Create a simulated result
+                        let result = MeetingResult {
+                            meeting_id: Some(format!("simulation-merged-meeting-{}", i)),
+                            merged: true,
+                            room_name: group[0].item_name.clone(),
+                            time_slots: time_slot_labels,
+                            success: true,
+                        };
+
+                        // Store directly in database
+                        if let Err(e) = state.database.store_meeting(
+                            &form_submission,
+                            &format!("simulation-merged-meeting-{}", i),
+                            &group[0].item_name,
+                            &state.default_room_id,
+                        ) {
+                            error!("Failed to store simulated merged meeting record: {}", e);
+                        }
+
+                        meeting_results.push(result);
+                        all_successful = all_successful && true;
+                    } else {
+                        // Normal flow - create the merged meeting
+                        match create_merged_meeting(
+                            &state.client,
+                            &state.user_field_name,
+                            &state.dept_field_name,
+                            &form_submission,
+                            group,
+                        )
+                        .await
+                        {
+                            Ok(result) => {
+                                all_successful = all_successful && result.success;
+
+                                // Store in database if we have a meeting ID
+                                if let Some(meeting_id) = &result.meeting_id {
+                                    // Only book rooms if not skipped
+                                    if !state.skip_room_booking {
+                                        // Step 2: Book the meeting room
+                                        let book_request = BookRoomsRequest {
+                                            operator_id: state.client.get_operator_id().to_string(),
+                                            operator_id_type: 1,
+                                            meeting_room_id_list: vec![state
+                                                .default_room_id
+                                                .clone()],
+                                            subject_visible: Some(true),
+                                        };
+
+                                        match state
+                                            .client
+                                            .book_rooms(meeting_id, &book_request)
+                                            .await
+                                        {
+                                            Ok(_) => {
+                                                info!(
+                                                    "Successfully booked room {} for meeting {}",
+                                                    state.default_room_id, meeting_id
+                                                );
+                                            }
+                                            Err(err) => {
+                                                error!("Failed to book room for meeting: {}", err);
+                                                // Continue with other operations, don't fail completely
+                                            }
                                         }
+                                    } else {
+                                        info!("Room booking disabled: Skipping room booking for meeting {}", meeting_id);
                                     }
-                                    Err(err) => {
-                                        error!("Failed to book room for meeting: {}", err);
-                                        // Continue with other operations, don't fail completely
+
+                                    // Always store meeting in database
+                                    if let Err(e) = state.database.store_meeting(
+                                        &form_submission,
+                                        meeting_id,
+                                        &result.room_name,
+                                        &state.default_room_id,
+                                    ) {
+                                        error!("Failed to store meeting record: {}", e);
+                                        // Continue processing even if database storage fails
                                     }
                                 }
-                            }
 
-                            meeting_results.push(result);
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to create merged meeting in group {}: {:?}",
-                                i + 1,
-                                e
-                            );
-                            all_successful = false;
-                            // Continue processing other groups even if one fails
+                                meeting_results.push(result);
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to create merged meeting in group {}: {:?}",
+                                    i + 1,
+                                    e
+                                );
+                                all_successful = false;
+                                // Continue processing other groups even if one fails
+                            }
                         }
                     }
                 }
                 std::cmp::Ordering::Equal => {
                     // Create a single meeting for this slot (exactly 1 slot)
                     info!("Creating single meeting for time slot in group {}", i + 1);
-                    match create_meeting_with_time_slot(
-                        &state.client,
-                        &state.user_field_name,
-                        &state.dept_field_name,
-                        &form_submission,
-                        &group[0],
-                    )
-                    .await
-                    {
-                        Ok(result) => {
-                            all_successful = all_successful && result.success;
+                    // Check if we're in simulation mode first
+                    if state.skip_meeting_creation {
+                        info!(
+                            "Simulation mode: Storing single time slot without creating a meeting"
+                        );
 
-                            // Store in database if we have a meeting ID
-                            if let Some(meeting_id) = &result.meeting_id {
-                                // Step 2: Book the meeting room
-                                let book_request = BookRoomsRequest {
-                                    operator_id: state.client.get_operator_id().to_string(),
-                                    operator_id_type: 1,
-                                    meeting_room_id_list: vec![state.default_room_id.clone()],
-                                    subject_visible: Some(true),
-                                };
-                                
-                                match state.client.book_rooms(meeting_id, &book_request).await {
-                                    Ok(_) => {
-                                        info!("Successfully booked room {} for meeting {}", 
-                                            state.default_room_id, meeting_id);
-                                        
-                                        // Store meeting info in database with room ID
-                                        if let Err(e) = state.database.store_meeting(
-                                            &form_submission,
-                                            meeting_id,
-                                            &result.room_name,
-                                            &state.default_room_id,
-                                        ) {
-                                            error!("Failed to store meeting record: {}", e);
-                                            // Continue processing even if database storage fails
+                        // Create a simulated result
+                        let result = MeetingResult {
+                            meeting_id: Some(format!("simulation-meeting-id-{}", i)),
+                            merged: false,
+                            room_name: group[0].item_name.clone(),
+                            time_slots: vec![group[0].scheduled_label.clone()],
+                            success: true,
+                        };
+
+                        // Store directly in database
+                        if let Err(e) = state.database.store_meeting(
+                            &form_submission,
+                            &format!("simulation-meeting-id-{}", i),
+                            &group[0].item_name,
+                            &state.default_room_id,
+                        ) {
+                            error!("Failed to store simulated meeting record: {}", e);
+                        }
+
+                        meeting_results.push(result);
+                        all_successful = all_successful && true;
+                    } else {
+                        // Normal flow - create the meeting
+                        match create_meeting_with_time_slot(
+                            &state.client,
+                            &state.user_field_name,
+                            &state.dept_field_name,
+                            &form_submission,
+                            &group[0],
+                        )
+                        .await
+                        {
+                            Ok(result) => {
+                                all_successful = all_successful && result.success;
+
+                                // Store in database if we have a meeting ID
+                                if let Some(meeting_id) = &result.meeting_id {
+                                    // Only book rooms if not skipped
+                                    if !state.skip_room_booking {
+                                        // Step 2: Book the meeting room
+                                        let book_request = BookRoomsRequest {
+                                            operator_id: state.client.get_operator_id().to_string(),
+                                            operator_id_type: 1,
+                                            meeting_room_id_list: vec![state
+                                                .default_room_id
+                                                .clone()],
+                                            subject_visible: Some(true),
+                                        };
+
+                                        match state
+                                            .client
+                                            .book_rooms(meeting_id, &book_request)
+                                            .await
+                                        {
+                                            Ok(_) => {
+                                                info!(
+                                                    "Successfully booked room {} for meeting {}",
+                                                    state.default_room_id, meeting_id
+                                                );
+                                            }
+                                            Err(err) => {
+                                                error!("Failed to book room for meeting: {}", err);
+                                                // Continue with other operations, don't fail completely
+                                            }
                                         }
+                                    } else {
+                                        info!("Room booking disabled: Skipping room booking for meeting {}", meeting_id);
                                     }
-                                    Err(err) => {
-                                        error!("Failed to book room for meeting: {}", err);
-                                        // Continue with other operations, don't fail completely
+
+                                    // Always store in database
+                                    if let Err(e) = state.database.store_meeting(
+                                        &form_submission,
+                                        meeting_id,
+                                        &result.room_name,
+                                        &state.default_room_id,
+                                    ) {
+                                        error!("Failed to store meeting record: {}", e);
+                                        // Continue processing even if database storage fails
                                     }
                                 }
-                            }
 
-                            meeting_results.push(result);
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to create single meeting in group {}: {:?}",
-                                i + 1,
-                                e
-                            );
-                            all_successful = false;
-                            // Continue processing other groups even if one fails
+                                meeting_results.push(result);
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to create single meeting in group {}: {:?}",
+                                    i + 1,
+                                    e
+                                );
+                                all_successful = false;
+                                // Continue processing other groups even if one fails
+                            }
                         }
                     }
                 }

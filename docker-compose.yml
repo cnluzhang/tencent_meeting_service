@@ -26,14 +26,16 @@ services:
     volumes:
       - .:/app
       - cargo-cache:/usr/local/cargo/registry
+      - meeting-data:/app/data
     ports:
-      - "3000:3000"
+      - "13000:3000"
     env_file:
       - .env
     environment:
       - RUST_LOG=debug
       - RUST_BACKTRACE=1
-    command: bash -c "cargo install cargo-watch && cargo watch -x run"
+    command: bash -c "cargo install cargo-watch && cargo watch -w src -x run"
 
 volumes:
   cargo-cache:
+  meeting-data:

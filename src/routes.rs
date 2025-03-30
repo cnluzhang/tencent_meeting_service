@@ -5,8 +5,8 @@ use axum::{
 use std::sync::Arc;
 
 use crate::handlers::api::{
-    book_rooms, cancel_meeting, create_meeting, handle_form_submission, 
-    list_meeting_rooms, release_rooms, AppState,
+    book_rooms, cancel_meeting, create_meeting, handle_form_submission, list_meeting_rooms,
+    release_rooms, AppState,
 };
 use crate::handlers::test::{health_check, test_endpoint, test_form_submission, test_meetings};
 

@@ -75,7 +75,39 @@ DEFAULT_MEETING_ROOM_ID=your_default_room_id
 # Optional settings
 TENCENT_MEETING_API_ENDPOINT=https://api.meeting.qq.com
 RUST_LOG=info
+
+# Feature toggles (optional)
+SKIP_MEETING_CREATION=false  # Set to true to only store in database without API calls
+SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
+
+# Database configuration (optional)
+MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 ```
+
+## Feature Toggles
+
+The service supports two feature toggles to control its behavior:
+
+1. **SKIP_MEETING_CREATION** - When set to `true`:
+   - No API calls are made to Tencent Meeting for meeting creation/cancellation
+   - Form submissions are only stored in the database
+   - Simulated meeting IDs are generated
+   - Useful for testing form processing without making actual API calls
+
+2. **SKIP_ROOM_BOOKING** - When set to `true`:
+   - Meetings are created normally in Tencent Meeting
+   - No room booking API calls are made
+   - Useful when room booking is handled separately
+
+## Data Storage
+
+The service uses a simple CSV file-based database to track meeting reservations:
+
+- Stored in a dedicated Docker volume for persistence
+- Default path is `/app/data/meetings.csv`
+- Can be customized via the `MEETING_DATABASE_PATH` environment variable
+- Includes deduplication to prevent duplicate entries
+- Stores meeting details, room IDs, and status information
 
 ## Quick Test
 
@@ -160,6 +192,12 @@ The project uses a modular architecture to improve maintainability and separatio
 6. **Authentication** (`src/auth.rs`) - Authentication utilities
    - HMAC-SHA256 signature generation
    - Nonce and timestamp utilities
+   
+7. **Database** (`src/services/database.rs`) - Simple CSV-based storage
+   - Stores meeting records in a persistent CSV file
+   - Handles record creation, retrieval, and updates
+   - Provides deduplication to prevent duplicate entries
+   - Data is stored in a Docker volume for persistence
 
 ## Form Service Integration
 

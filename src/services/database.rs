@@ -85,6 +85,15 @@ impl DatabaseService {
         room_name: &str,
         room_id: &str,
     ) -> Result<(), String> {
+        // Check if entry already exists with the same token and status
+        let existing = self.find_meeting_by_token_and_status(&form.entry.token, &form.entry.reservation_status_fsf_field)?;
+        if let Some(_record) = existing {
+            // Entry with same token and status already exists
+            info!("Meeting with token {} and status {} already exists, skipping insertion", 
+                form.entry.token, form.entry.reservation_status_fsf_field);
+            return Ok(());
+        }
+        
         // Get current time in UTC
         let now = Utc::now();
 
@@ -143,8 +152,10 @@ impl DatabaseService {
         for result in reader.records() {
             let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
 
-            // Check if this is the record to update
-            if record.get(0) == Some(entry_token) && record.get(7) == Some("Reserved") {
+            // Check if this is the record to update - not yet cancelled
+            let is_reserved = record.get(7) == Some("Reserved") || record.get(7) == Some("已预约");
+            let is_cancelled = record.get(7) == Some("Cancelled") || record.get(7) == Some("已取消");
+            if record.get(0) == Some(entry_token) && is_reserved && !is_cancelled {
                 // Add to records with updated status
                 let mut updated = record.clone();
 
@@ -158,7 +169,7 @@ impl DatabaseService {
 
                     // Build a new record with updated status and cancelled_at time
                     let mut updated_vec: Vec<String> = record.iter().map(String::from).collect();
-                    updated_vec[7] = "Cancelled".to_string(); // Update status
+                    updated_vec[7] = "已取消".to_string(); // Update status to Chinese "Cancelled"
                     updated_vec[11] = now.clone(); // Update cancelled_at
 
                     updated = StringRecord::from(updated_vec);
@@ -210,7 +221,7 @@ impl DatabaseService {
         Ok(Some((meeting_id.unwrap(), room_id.unwrap())))
     }
 
-    // Find a meeting by entry token
+    // Find a meeting by entry token (active/not cancelled)
     pub fn find_meeting_by_token(
         &self,
         entry_token: &str,
@@ -229,7 +240,51 @@ impl DatabaseService {
         for result in reader.records() {
             let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
 
-            if record.get(0) == Some(entry_token) && record.get(7) == Some("Reserved") {
+            // For finding a meeting, we check if it's either reserved or not cancelled
+            let is_cancelled = record.get(7) == Some("Cancelled") || record.get(7) == Some("已取消");
+            if record.get(0) == Some(entry_token) && !is_cancelled {
+                // Convert to MeetingRecord
+                return Ok(Some(self.string_record_to_meeting_record(&record)?));
+            }
+        }
+
+        // No matching record found
+        Ok(None)
+    }
+    
+    // Find a meeting by entry token and specific status
+    pub fn find_meeting_by_token_and_status(
+        &self,
+        entry_token: &str,
+        status: &str,
+    ) -> Result<Option<MeetingRecord>, String> {
+        let _lock = self
+            .file_mutex
+            .lock()
+            .map_err(|e| format!("Failed to acquire mutex: {}", e))?;
+
+        // If file doesn't exist yet, return None
+        if !Path::new(&self.csv_path).exists() {
+            return Ok(None);
+        }
+        
+        let file = match File::open(&self.csv_path) {
+            Ok(file) => file,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return Ok(None);
+                }
+                return Err(format!("Failed to open database file: {}", e));
+            }
+        };
+
+        let mut reader = ReaderBuilder::new().has_headers(true).from_reader(file);
+
+        // Find the record with matching token and status
+        for result in reader.records() {
+            let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
+
+            if record.get(0) == Some(entry_token) && record.get(7) == Some(status) {
                 // Convert to MeetingRecord
                 return Ok(Some(self.string_record_to_meeting_record(&record)?));
             }
@@ -319,8 +374,18 @@ impl DatabaseService {
 
 // Create a singleton database service
 pub fn create_database_service() -> Arc<DatabaseService> {
-    let csv_path =
-        std::env::var("MEETING_DATABASE_PATH").unwrap_or_else(|_| "meetings.csv".to_string());
+    // Default path with environment variable override
+    let default_path = "/app/data/meetings.csv";
+    let csv_path = std::env::var("MEETING_DATABASE_PATH").unwrap_or_else(|_| default_path.to_string());
+    
+    // Create the data directory if it doesn't exist and we're using the default path
+    if csv_path == default_path {
+        let dir = std::path::Path::new(default_path).parent().unwrap();
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            tracing::warn!("Failed to create data directory: {}, falling back to root dir", e);
+            return Arc::new(DatabaseService::new("meetings.csv"));
+        }
+    }
 
     Arc::new(DatabaseService::new(&csv_path))
 }

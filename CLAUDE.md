@@ -53,7 +53,25 @@ FORM_DEPT_FIELD_NAME=department_field_name
 
 # Room booking (required)
 DEFAULT_MEETING_ROOM_ID=your_default_room_id
+
+# Feature toggles (optional)
+SKIP_MEETING_CREATION=false  # Set to true to only store in database without API calls
+SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
+
+# Database configuration (optional)
+MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 ```
+
+## Feature Toggles
+- `SKIP_MEETING_CREATION=true` - Simulation mode: processes forms but doesn't make API calls
+- `SKIP_ROOM_BOOKING=true` - Creates meetings but skips room booking API calls
+- Both toggles can be used in combination for different testing scenarios
+
+## Data Storage
+- Meeting data is stored in a persistent CSV file in a Docker volume
+- Default location: `/app/data/meetings.csv`
+- Deduplication to prevent duplicate entries based on token and status
+- Database automatically handles both English and Chinese status values
 
 ## Code Organization
 

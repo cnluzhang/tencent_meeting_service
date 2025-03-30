@@ -373,8 +373,27 @@ impl TencentMeetingClient {
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
-        let response = res.json::<MeetingRoomsResponse>().await?;
-        Ok(response)
+        // Get a copy of the status for logging
+        let status = res.status();
+
+        // For non-successful responses, log the details before trying to parse
+        if !status.is_success() {
+            error!("API request failed with status: {}", status);
+            error!("Request URL: {}", url);
+            error!("This could be due to incorrect credentials or API parameters");
+
+            // Continue to let it try to parse, which will generate a useful error
+            // when the JSON parsing fails
+        }
+
+        // For successful responses, parse JSON
+        match res.json::<MeetingRoomsResponse>().await {
+            Ok(response) => Ok(response),
+            Err(e) => {
+                error!("Failed to parse response JSON: {}", e);
+                Err(e)
+            }
+        }
     }
 
     /// Create a new meeting using the Tencent Meeting API
@@ -500,8 +519,8 @@ impl TencentMeetingClient {
         let uri = format!("/v1/meetings/{}/book-rooms", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
 
-        let request_body = serde_json::to_string(&book_request)
-            .expect("Failed to serialize book rooms request");
+        let request_body =
+            serde_json::to_string(&book_request).expect("Failed to serialize book rooms request");
 
         let timestamp = TencentAuth::get_timestamp();
         let nonce = TencentAuth::generate_nonce();

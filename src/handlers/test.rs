@@ -4,8 +4,8 @@ use serde_json;
 use std::collections::HashMap;
 
 use crate::client::{
-    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, MeetingRoomItem, MeetingRoomsResponse,
-    MeetingSettings, ReleaseRoomsRequest, User,
+    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, MeetingRoomItem,
+    MeetingRoomsResponse, MeetingSettings, ReleaseRoomsRequest, User,
 };
 use crate::models::form::{FormEntry, FormField1Item, FormSubmission};
 
@@ -135,7 +135,7 @@ pub async fn test_meetings() -> Json<TestMeetingResponse> {
         meeting_room_id_list: vec!["room123".to_string(), "room456".to_string()],
         subject_visible: Some(true),
     };
-    
+
     // Sample room release request
     let sample_release_rooms = ReleaseRoomsRequest {
         operator_id: "test_user".to_string(),

@@ -44,16 +44,31 @@ async fn main() {
 
     let dept_field_name =
         env::var("FORM_DEPT_FIELD_NAME").expect("FORM_DEPT_FIELD_NAME must be set in environment");
-        
+
     // Load the default meeting room ID
-    let default_room_id =
-        env::var("DEFAULT_MEETING_ROOM_ID").expect("DEFAULT_MEETING_ROOM_ID must be set in environment");
+    let default_room_id = env::var("DEFAULT_MEETING_ROOM_ID")
+        .expect("DEFAULT_MEETING_ROOM_ID must be set in environment");
 
     info!("Using form field mappings and default room ID from environment variables");
 
     // Initialize the database service
     let database = create_database_service();
     info!("Database service initialized");
+
+    // Load toggle settings from environment or default to false
+    let skip_meeting_creation = env::var("SKIP_MEETING_CREATION")
+        .map(|val| val.to_lowercase() == "true")
+        .unwrap_or(false);
+
+    let skip_room_booking = env::var("SKIP_ROOM_BOOKING")
+        .map(|val| val.to_lowercase() == "true")
+        .unwrap_or(false);
+
+    if skip_meeting_creation {
+        info!("Running in simulation mode: Form submissions will be stored in CSV only, no meetings will be created");
+    } else if skip_room_booking {
+        info!("Room booking disabled: Meetings will be created but no rooms will be booked");
+    }
 
     // Create shared application state
     let app_state = Arc::new(AppState {
@@ -62,6 +77,8 @@ async fn main() {
         dept_field_name,
         database,
         default_room_id,
+        skip_meeting_creation,
+        skip_room_booking,
     });
 
     // Create router with all routes
