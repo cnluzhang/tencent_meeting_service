@@ -24,7 +24,13 @@ impl fmt::Display for TencentApiError {
 
 impl Error for TencentApiError {}
 
-// We use reqwest::Error directly for errors
+impl From<serde_json::Error> for TencentApiError {
+    fn from(err: serde_json::Error) -> Self {
+        TencentApiError {
+            message: format!("JSON parsing error: {}", err),
+        }
+    }
+}
 
 // Meeting room response types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -333,7 +339,7 @@ impl TencentMeetingClient {
         &self,
         page: usize,
         page_size: usize,
-    ) -> Result<MeetingRoomsResponse, reqwest::Error> {
+    ) -> Result<MeetingRoomsResponse, Box<dyn Error + Send + Sync>> {
         let method = "GET";
         let uri = "/v1/meeting-rooms";
         let query = format!(
@@ -373,25 +379,25 @@ impl TencentMeetingClient {
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
-        // Get a copy of the status for logging
+        // Get response body for logging
         let status = res.status();
+        let response_text = res.text().await?;
+        debug!("API Response: {}", response_text);
 
         // For non-successful responses, log the details before trying to parse
         if !status.is_success() {
             error!("API request failed with status: {}", status);
             error!("Request URL: {}", url);
+            error!("Response body: {}", response_text);
             error!("This could be due to incorrect credentials or API parameters");
-
-            // Continue to let it try to parse, which will generate a useful error
-            // when the JSON parsing fails
         }
 
-        // For successful responses, parse JSON
-        match res.json::<MeetingRoomsResponse>().await {
+        // Parse the response JSON
+        match serde_json::from_str::<MeetingRoomsResponse>(&response_text) {
             Ok(response) => Ok(response),
             Err(e) => {
                 error!("Failed to parse response JSON: {}", e);
-                Err(e)
+                Err(Box::new(e))
             }
         }
     }
@@ -400,7 +406,7 @@ impl TencentMeetingClient {
     pub async fn create_meeting(
         &self,
         meeting_request: &CreateMeetingRequest,
-    ) -> Result<CreateMeetingResponse, reqwest::Error> {
+    ) -> Result<CreateMeetingResponse, Box<dyn Error + Send + Sync>> {
         let method = "POST";
         let uri = "/v1/meetings";
         let url = format!("{}{}", self.endpoint, uri);
@@ -444,14 +450,24 @@ impl TencentMeetingClient {
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
+        // Get response body for logging
+        let status = res.status();
+        let response_text = res.text().await?;
+        debug!("API Response: {}", response_text);
+
         // Log any errors but still try to parse the response
-        if !res.status().is_success() {
-            let status = res.status();
+        if !status.is_success() {
             error!("Create meeting failed with status: {}", status);
+            error!("Response body: {}", response_text);
         }
 
-        let response = res.json::<CreateMeetingResponse>().await?;
-        Ok(response)
+        match serde_json::from_str::<CreateMeetingResponse>(&response_text) {
+            Ok(response) => Ok(response),
+            Err(e) => {
+                error!("Failed to parse response JSON: {}", e);
+                Err(Box::new(e))
+            }
+        }
     }
 
     /// Cancel a meeting using the Tencent Meeting API
@@ -459,7 +475,7 @@ impl TencentMeetingClient {
         &self,
         meeting_id: &str,
         cancel_request: &CancelMeetingRequest,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let method = "POST";
         let uri = format!("/v1/meetings/{}/cancel", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
@@ -497,12 +513,15 @@ impl TencentMeetingClient {
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
+        // Get response body for logging
+        let status = res.status();
+        let response_text = res.text().await?;
+        debug!("API Response: {}", response_text);
+
         // Log any errors but let the JSON parsing handle failures
-        if !res.status().is_success() {
-            let status = res.status();
+        if !status.is_success() {
             error!("Cancel meeting failed with status: {}", status);
-            // The API might still return some body with details, but we'll get an error
-            // when we try to parse the empty body, which is fine
+            error!("Response body: {}", response_text);
         }
 
         // For successful cancellation, the response body is empty
@@ -514,7 +533,7 @@ impl TencentMeetingClient {
         &self,
         meeting_id: &str,
         book_request: &BookRoomsRequest,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let method = "POST";
         let uri = format!("/v1/meetings/{}/book-rooms", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
@@ -553,10 +572,15 @@ impl TencentMeetingClient {
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
+        // Get response body for logging
+        let status = res.status();
+        let response_text = res.text().await?;
+        debug!("API Response: {}", response_text);
+
         // Log any errors but let the JSON parsing handle failures
-        if !res.status().is_success() {
-            let status = res.status();
+        if !status.is_success() {
             error!("Book rooms failed with status: {}", status);
+            error!("Response body: {}", response_text);
         }
 
         // For successful booking, the response body is typically empty
@@ -568,7 +592,7 @@ impl TencentMeetingClient {
         &self,
         meeting_id: &str,
         release_request: &ReleaseRoomsRequest,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let method = "POST";
         let uri = format!("/v1/meetings/{}/release-rooms", meeting_id);
         let url = format!("{}{}", self.endpoint, uri);
@@ -607,10 +631,15 @@ impl TencentMeetingClient {
         let res = request.send().await?;
         info!("Response received with status: {}", res.status());
 
+        // Get response body for logging
+        let status = res.status();
+        let response_text = res.text().await?;
+        debug!("API Response: {}", response_text);
+
         // Log any errors but let the JSON parsing handle failures
-        if !res.status().is_success() {
-            let status = res.status();
+        if !status.is_success() {
             error!("Release rooms failed with status: {}", status);
+            error!("Response body: {}", response_text);
         }
 
         // For successful room release, the response body is typically empty

@@ -9,7 +9,7 @@ description = "Tencent Meeting API service that connects with form service"
 tokio = { version = "1", features = ["full"] }
 
 # Web framework
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.5", features = ["trace", "cors"] }
 

@@ -81,7 +81,8 @@ FORM_USER_FIELD_NAME=user_field_name
 FORM_DEPT_FIELD_NAME=department_field_name
 
 # Room booking (required)
-DEFAULT_MEETING_ROOM_ID=your_default_room_id
+XA_MEETING_ROOM_ID=your_xian_room_id
+CD_MEETING_ROOM_ID=your_chengdu_room_id
 
 # Optional settings
 TENCENT_MEETING_API_ENDPOINT=https://api.meeting.qq.com
@@ -288,9 +289,9 @@ The service processes this data as follows:
 - Meeting time is taken from scheduled_at (in UTC format)
 - Meeting duration is calculated from the time range in scheduled_label (e.g., "09:00-10:00")
 - The operator_id from environment variables is used as the meeting creator/host
-- Department and room name are used for the meeting location
+- Location is set based on form name ('西安-大会议室' for Xi'an forms, '成都-天府广场' for Chengdu forms)
 - Meeting instance ID is set to 32 (as required by the API)
-- After meeting creation, the meeting room (specified in DEFAULT_MEETING_ROOM_ID) is booked automatically
+- After meeting creation, the appropriate meeting room based on form name is booked automatically
 
 When multiple time slots are submitted in a single form:
 1. The service attempts to find all mergeable groups of time slots
@@ -298,7 +299,7 @@ When multiple time slots are submitted in a single form:
    - If the group has multiple time slots that are contiguous and in the same room, they are merged into a single meeting
    - If the group has only one time slot, a single meeting is created for it
 3. For each created meeting, the service:
-   - Books the default meeting room (from DEFAULT_MEETING_ROOM_ID)
+   - Books the appropriate meeting room based on form name (XA_MEETING_ROOM_ID for Xi'an forms, CD_MEETING_ROOM_ID for Chengdu forms)
    - Stores the meeting ID and room ID in the database for future reference
 4. The response includes details for all created meetings, indicating:
    - Which time slots were merged

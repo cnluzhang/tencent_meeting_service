@@ -1,12 +1,37 @@
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use tracing::{error, info};
+use tracing::{error, info, debug, warn};
 
 use crate::client::{CreateMeetingRequest, MeetingSettings, TencentMeetingClient, User};
 use crate::models::form::FormField1Item;
 use crate::models::form::FormSubmission;
 use crate::models::meeting::{MeetingResult, TimeSlot};
+
+// Helper function to determine location based on form name
+fn get_location_for_form(form_name: &str, room_name: &str) -> String {
+    debug!("Getting location for form: {}, room: {}", form_name, room_name);
+    
+    match form_name {
+        name if name == "西安会议室预约" => "西安-大会议室".to_string(),
+        name if name == "成都会议室预约" => "成都-天府广场".to_string(),
+        _ => format!("{} (Unknown Location)", room_name) // Default fallback
+    }
+}
+
+// Helper function to determine which room ID to use based on form name
+pub fn get_room_id_for_form(form_name: &str, xa_room_id: &str, cd_room_id: &str) -> String {
+    debug!("Getting room ID for form: {}", form_name);
+    
+    match form_name {
+        name if name == "西安会议室预约" => xa_room_id.to_string(),
+        name if name == "成都会议室预约" => cd_room_id.to_string(),
+        _ => {
+            warn!("Unknown form name: {}, using Xi'an room ID as default", form_name);
+            xa_room_id.to_string() // Default to Xi'an room ID
+        }
+    }
+}
 
 // Parse a scheduled time from a form field item
 pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String> {
@@ -116,7 +141,7 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
 // Create a meeting with the given time slot
 pub async fn create_meeting_with_time_slot(
     client: &TencentMeetingClient,
-    dept_field_name: &str,
+    _dept_field_name: &str,
     form_submission: &FormSubmission,
     time_slot: &TimeSlot,
 ) -> Result<MeetingResult, StatusCode> {
@@ -154,16 +179,7 @@ pub async fn create_meeting_with_time_slot(
             play_ivr_on_leave: None,
             play_ivr_on_join: None,
         }),
-        location: Some(format!(
-            "{} ({})",
-            time_slot.item_name,
-            form_submission
-                .entry
-                .extra_fields
-                .get(dept_field_name)
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown Department")
-        )),
+        location: Some(get_location_for_form(&form_submission.form_name, time_slot.item_name.as_str())),
         meeting_type: None,
         recurring_rule: None,
         enable_live: None,
@@ -223,7 +239,7 @@ pub async fn create_meeting_with_time_slot(
 // Create a merged meeting from multiple time slots
 pub async fn create_merged_meeting(
     client: &TencentMeetingClient,
-    dept_field_name: &str,
+    _dept_field_name: &str,
     form_submission: &FormSubmission,
     time_slots: &[TimeSlot],
 ) -> Result<MeetingResult, StatusCode> {
@@ -289,16 +305,7 @@ pub async fn create_merged_meeting(
             play_ivr_on_leave: None,
             play_ivr_on_join: None,
         }),
-        location: Some(format!(
-            "{} ({})",
-            room_name,
-            form_submission
-                .entry
-                .extra_fields
-                .get(dept_field_name)
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown Department")
-        )),
+        location: Some(get_location_for_form(&form_submission.form_name, room_name.as_str())),
         meeting_type: None,
         recurring_rule: None,
         enable_live: None,

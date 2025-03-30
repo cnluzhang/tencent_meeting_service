@@ -110,7 +110,8 @@ FORM_USER_FIELD_NAME=user_field_name
 FORM_DEPT_FIELD_NAME=department_field_name
 
 # Room booking (required)
-DEFAULT_MEETING_ROOM_ID=your_default_room_id
+XA_MEETING_ROOM_ID=your_xian_room_id
+CD_MEETING_ROOM_ID=your_chengdu_room_id
 
 # Feature toggles (optional)
 SKIP_MEETING_CREATION=false  # Set to true to only store in database without API calls
@@ -248,7 +249,12 @@ When connecting to form services, make sure to:
 3. Add validation for incoming form data
 4. Ensure proper timezone handling in scheduling APIs
 
-### Form Webhook Structure
+### Form-Specific Customizations
+- Form name `西安会议室预约` uses Xi'an meeting room ID and sets location to `西安-大会议室`
+- Form name `成都会议室预约` uses Chengdu meeting room ID and sets location to `成都-天府广场`
+- Other form names default to Xi'an meeting room ID with generic location formatting
+
+## Form Webhook Structure
 The webhook endpoint (`/webhook/form-submission`) expects the following JSON structure:
 
 For meeting creation:

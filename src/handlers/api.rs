@@ -16,6 +16,7 @@ use crate::models::meeting::{MeetingResult, WebhookResponse};
 use crate::services::database::DatabaseService;
 use crate::services::time_slots::{
     create_meeting_with_time_slot, create_merged_meeting, find_mergeable_groups, parse_time_slot,
+    get_room_id_for_form,
 };
 
 // AppState struct containing shared resources
@@ -25,12 +26,14 @@ pub struct AppState {
     pub user_field_name: String, // Reserved for future use
     pub dept_field_name: String,
     pub database: Arc<DatabaseService>,
-    pub default_room_id: String,
+    pub xa_room_id: String,     // Xi'an meeting room ID
+    pub cd_room_id: String,     // Chengdu meeting room ID
     pub skip_meeting_creation: bool, // Toggle to only store in CSV without creating meetings
     pub skip_room_booking: bool,     // Toggle to create meetings but not book rooms
 }
 
 // List meeting rooms endpoint
+#[axum::debug_handler]
 pub async fn list_meeting_rooms(
     State(state): State<Arc<AppState>>,
     Query(params): Query<PaginationParams>,
@@ -62,6 +65,7 @@ pub async fn list_meeting_rooms(
 }
 
 // Create a new meeting endpoint
+#[axum::debug_handler]
 pub async fn create_meeting(
     State(state): State<Arc<AppState>>,
     ExtractJson(request): ExtractJson<CreateMeetingRequest>,
@@ -85,6 +89,7 @@ pub async fn create_meeting(
 }
 
 // Cancel an existing meeting endpoint
+#[axum::debug_handler]
 pub async fn cancel_meeting(
     State(state): State<Arc<AppState>>,
     Path(meeting_id): Path<String>,
@@ -106,6 +111,7 @@ pub async fn cancel_meeting(
 }
 
 // Book meeting rooms for a meeting
+#[axum::debug_handler]
 pub async fn book_rooms(
     State(state): State<Arc<AppState>>,
     Path(meeting_id): Path<String>,
@@ -127,6 +133,7 @@ pub async fn book_rooms(
 }
 
 // Release meeting rooms for a meeting
+#[axum::debug_handler]
 pub async fn release_rooms(
     State(state): State<Arc<AppState>>,
     Path(meeting_id): Path<String>,
@@ -151,10 +158,13 @@ pub async fn release_rooms(
 }
 
 // Form webhook endpoint for meeting creation
+#[axum::debug_handler]
 pub async fn handle_form_submission(
     State(state): State<Arc<AppState>>,
     ExtractJson(form_submission): ExtractJson<FormSubmission>,
 ) -> Result<Json<WebhookResponse>, StatusCode> {
+    // Get the appropriate room ID for this form
+    let form_specific_room_id = get_room_id(&state, &form_submission);
     // Check if this is a cancellation request
     if form_submission
         .entry
@@ -360,11 +370,12 @@ pub async fn handle_form_submission(
             };
 
             // Store directly in database with merged time slot info
+            let room_id = get_room_id(&state, &form_submission);
             if let Err(e) = state.database.store_merged_meeting(
                 &form_submission,
                 "simulation-merged-meeting",
                 &time_slots[0].item_name,
-                &state.default_room_id,
+                &room_id,
                 &time_slots,
             ) {
                 error!("Failed to store simulated meeting record: {}", e);
@@ -388,11 +399,12 @@ pub async fn handle_form_submission(
                     if state.skip_meeting_creation {
                         // In simulation mode, store directly in database without creating a meeting
                         info!("Simulation mode: Storing form submission in database without creating a meeting");
+                        let room_id = get_room_id(&state, &form_submission);
                         if let Err(e) = state.database.store_meeting(
                             &form_submission,
                             "simulation-meeting-id",
                             &result.room_name,
-                            &state.default_room_id,
+                            &room_id,
                         ) {
                             error!("Failed to store simulated meeting record: {}", e);
                         }
@@ -401,11 +413,18 @@ pub async fn handle_form_submission(
                     else if let Some(meeting_id) = &result.meeting_id {
                         // Check if we should book rooms
                         if !state.skip_room_booking {
+                            // Get the appropriate room ID based on the form name
+                            let room_id = get_room_id_for_form(
+                                &form_submission.form_name, 
+                                &state.xa_room_id, 
+                                &state.cd_room_id
+                            );
+                            
                             // Book meeting room
                             let book_request = BookRoomsRequest {
                                 operator_id: state.client.get_operator_id().to_string(),
                                 operator_id_type: 1,
-                                meeting_room_id_list: vec![state.default_room_id.clone()],
+                                meeting_room_id_list: vec![room_id.clone()],
                                 subject_visible: Some(true),
                             };
 
@@ -413,7 +432,7 @@ pub async fn handle_form_submission(
                                 Ok(_) => {
                                     info!(
                                         "Successfully booked room {} for meeting {}",
-                                        state.default_room_id, meeting_id
+                                        form_specific_room_id, meeting_id
                                     );
                                 }
                                 Err(err) => {
@@ -429,11 +448,12 @@ pub async fn handle_form_submission(
                         }
 
                         // Store meeting info in database with room ID (whether or not room was booked)
+                        let room_id = get_room_id(&state, &form_submission);
                         if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             meeting_id,
                             &result.room_name,
-                            &state.default_room_id,
+                            &room_id,
                             &time_slots,
                         ) {
                             error!("Failed to store meeting record: {}", e);
@@ -486,11 +506,12 @@ pub async fn handle_form_submission(
                         };
 
                         // Store directly in database with merged time slot info
+                        let room_id = get_room_id(&state, &form_submission);
                         if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             &format!("simulation-merged-meeting-{}", i),
                             &group[0].item_name,
-                            &state.default_room_id,
+                            &room_id,
                             group,
                         ) {
                             error!("Failed to store simulated merged meeting record: {}", e);
@@ -516,12 +537,12 @@ pub async fn handle_form_submission(
                                     // Only book rooms if not skipped
                                     if !state.skip_room_booking {
                                         // Step 2: Book the meeting room
+                                        // Get the appropriate room ID
+                                        
                                         let book_request = BookRoomsRequest {
                                             operator_id: state.client.get_operator_id().to_string(),
                                             operator_id_type: 1,
-                                            meeting_room_id_list: vec![state
-                                                .default_room_id
-                                                .clone()],
+                                            meeting_room_id_list: vec![form_specific_room_id.clone()],
                                             subject_visible: Some(true),
                                         };
 
@@ -533,7 +554,7 @@ pub async fn handle_form_submission(
                                             Ok(_) => {
                                                 info!(
                                                     "Successfully booked room {} for meeting {}",
-                                                    state.default_room_id, meeting_id
+                                                    form_specific_room_id, meeting_id
                                                 );
                                             }
                                             Err(err) => {
@@ -546,11 +567,14 @@ pub async fn handle_form_submission(
                                     }
 
                                     // Always store meeting in database with merged time slot info
+                                    // Get the appropriate room ID
+                                    let room_id = get_room_id(&state, &form_submission);
+                                    
                                     if let Err(e) = state.database.store_merged_meeting(
                                         &form_submission,
                                         meeting_id,
                                         &result.room_name,
-                                        &state.default_room_id,
+                                        &room_id,
                                         group,
                                     ) {
                                         error!("Failed to store meeting record: {}", e);
@@ -591,11 +615,12 @@ pub async fn handle_form_submission(
                         };
 
                         // Store directly in database with specific time slot
+                        let room_id = get_room_id(&state, &form_submission);
                         if let Err(e) = state.database.store_meeting_with_time_slot(
                             &form_submission,
                             &format!("simulation-meeting-id-{}", i),
                             &group[0].item_name,
-                            &state.default_room_id,
+                            &room_id,
                             &group[0],
                         ) {
                             error!("Failed to store simulated meeting record: {}", e);
@@ -621,12 +646,12 @@ pub async fn handle_form_submission(
                                     // Only book rooms if not skipped
                                     if !state.skip_room_booking {
                                         // Step 2: Book the meeting room
+                                        // Get the appropriate room ID
+                                        
                                         let book_request = BookRoomsRequest {
                                             operator_id: state.client.get_operator_id().to_string(),
                                             operator_id_type: 1,
-                                            meeting_room_id_list: vec![state
-                                                .default_room_id
-                                                .clone()],
+                                            meeting_room_id_list: vec![form_specific_room_id.clone()],
                                             subject_visible: Some(true),
                                         };
 
@@ -638,7 +663,7 @@ pub async fn handle_form_submission(
                                             Ok(_) => {
                                                 info!(
                                                     "Successfully booked room {} for meeting {}",
-                                                    state.default_room_id, meeting_id
+                                                    form_specific_room_id, meeting_id
                                                 );
                                             }
                                             Err(err) => {
@@ -651,11 +676,12 @@ pub async fn handle_form_submission(
                                     }
 
                                     // Always store in database with specific time slot
+                                    let room_id = get_room_id(&state, &form_submission);
                                     if let Err(e) = state.database.store_meeting_with_time_slot(
                                         &form_submission,
                                         meeting_id,
                                         &result.room_name,
-                                        &state.default_room_id,
+                                        &room_id,
                                         &group[0],
                                     ) {
                                         error!("Failed to store meeting record: {}", e);
@@ -715,4 +741,13 @@ pub async fn handle_form_submission(
         meetings_count: meeting_results.len(),
         meetings: meeting_results,
     }))
+}
+
+// Helper function to get the room ID to use for a form submission
+fn get_room_id(state: &AppState, form_submission: &FormSubmission) -> String {
+    get_room_id_for_form(
+        &form_submission.form_name,
+        &state.xa_room_id,
+        &state.cd_room_id
+    )
 }
