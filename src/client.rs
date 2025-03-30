@@ -165,8 +165,6 @@ pub struct CreateMeetingRequest {
     #[serde(rename = "type")]
     pub _type: i32, // This is to map type_ to "type" in JSON
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub hosts: Option<Vec<User>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub guests: Option<Vec<Guest>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invitees: Option<Vec<User>>,
@@ -174,8 +172,6 @@ pub struct CreateMeetingRequest {
     pub end_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<MeetingSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meeting_type: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]

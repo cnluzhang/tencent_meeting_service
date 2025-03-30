@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use tracing::{debug, error, info, warn};
 
-use crate::client::{CreateMeetingRequest, MeetingSettings, TencentMeetingClient, User};
+use crate::client::{CreateMeetingRequest, TencentMeetingClient};
 use crate::models::form::FormField1Item;
 use crate::models::form::FormSubmission;
 use crate::models::meeting::{MeetingResult, TimeSlot};
@@ -208,33 +208,10 @@ pub async fn create_meeting_with_time_slot(
         subject: form_submission.entry.field_8.clone(),
         type_: 0, // Scheduled meeting
         _type: 0,
-        hosts: Some(vec![User {
-            userid: operator_id.clone(),
-            is_anonymous: None,
-            nick_name: Some(operator_name.clone()),
-        }]),
         invitees: None,
         start_time: time_slot.start_time.timestamp().to_string(),
         end_time: time_slot.end_time.timestamp().to_string(),
         password: None,
-        settings: Some(MeetingSettings {
-            mute_enable_join: Some(true),
-            mute_enable_type_join: Some(2),
-            allow_unmute_self: Some(true),
-            allow_in_before_host: Some(true),
-            auto_in_waiting_room: None,
-            allow_screen_shared_watermark: None,
-            water_mark_type: None,
-            only_enterprise_user_allowed: None,
-            only_user_join_type: Some(1),
-            auto_record_type: None,
-            participant_join_auto_record: None,
-            enable_host_pause_auto_record: None,
-            allow_multi_device: Some(true),
-            change_nickname: None,
-            play_ivr_on_leave: None,
-            play_ivr_on_join: None,
-        }),
         location: Some(get_location_for_form(
             &form_submission.form_name,
             time_slot.item_name.as_str(),
@@ -256,8 +233,8 @@ pub async fn create_meeting_with_time_slot(
     };
 
     info!(
-        "Creating meeting for room: {} with time range: {}-{}",
-        time_slot.item_name, time_slot.start_time, time_slot.end_time
+        "Creating meeting for room: {} with time range: {}-{} with operator: {} (ID: {})",
+        time_slot.item_name, time_slot.start_time, time_slot.end_time, operator_name, operator_id
     );
 
     // Call the Tencent Meeting API to create the meeting
@@ -327,12 +304,13 @@ pub async fn create_merged_meeting(
 
     // Log merged slot details
     info!(
-        "Creating merged time slot for room: {}, slots: {}, time range: {}-{} with operator: {}",
+        "Creating merged time slot for room: {}, slots: {}, time range: {}-{} with operator: {} (ID: {})",
         room_name,
         time_slots.len(),
         start_time,
         end_time,
-        operator_name
+        operator_name,
+        operator_id
     );
 
     // Create meeting request with merged time and specific operator
@@ -342,33 +320,10 @@ pub async fn create_merged_meeting(
         subject: form_submission.entry.field_8.clone(),
         type_: 0, // Scheduled meeting
         _type: 0,
-        hosts: Some(vec![User {
-            userid: operator_id.clone(),
-            is_anonymous: None,
-            nick_name: Some(operator_name.clone()),
-        }]),
         invitees: None,
         start_time: start_time.timestamp().to_string(),
         end_time: end_time.timestamp().to_string(),
         password: None,
-        settings: Some(MeetingSettings {
-            mute_enable_join: Some(true),
-            mute_enable_type_join: Some(2),
-            allow_unmute_self: Some(true),
-            allow_in_before_host: Some(true),
-            auto_in_waiting_room: None,
-            allow_screen_shared_watermark: None,
-            water_mark_type: None,
-            only_enterprise_user_allowed: None,
-            only_user_join_type: Some(1),
-            auto_record_type: None,
-            participant_join_auto_record: None,
-            enable_host_pause_auto_record: None,
-            allow_multi_device: Some(true),
-            change_nickname: None,
-            play_ivr_on_leave: None,
-            play_ivr_on_join: None,
-        }),
         location: Some(get_location_for_form(
             &form_submission.form_name,
             room_name.as_str(),
