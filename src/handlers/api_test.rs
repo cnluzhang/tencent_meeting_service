@@ -46,8 +46,8 @@ mod api_tests {
             webhook_auth_token: None,  // No auth token for tests by default
         };
         
-        // Create the router
-        let router = create_router(app_state.clone());
+        // Create the router - always use development mode in tests
+        let router = create_router(app_state.clone(), false);
         
         // Set up the test server
         let config = TestServerConfig::builder()
@@ -86,8 +86,8 @@ mod api_tests {
             webhook_auth_token: Some(auth_token.clone()),  // Set auth token
         };
         
-        // Create the router
-        let router = create_router(app_state.clone());
+        // Create the router - always use development mode in tests
+        let router = create_router(app_state.clone(), false);
         
         // Set up the test server
         let config = TestServerConfig::builder()
@@ -123,8 +123,8 @@ mod api_tests {
             webhook_auth_token: None,     // No auth token for tests by default
         };
         
-        // Create the router
-        let router = create_router(app_state.clone());
+        // Create the router - always use development mode in tests
+        let router = create_router(app_state.clone(), false);
         
         // Set up the test server
         let config = TestServerConfig::builder()
@@ -631,5 +631,89 @@ cd_room_id: "room2".to_string(),  // Chengdu room ID
         
         // Should return a 400 Bad Request
         assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+    }
+    
+    #[tokio::test]
+    async fn test_production_mode_endpoints() {
+        // Create a temporary database
+        let dir = tempdir().unwrap();
+        let csv_path = dir.path().join("test_meetings.csv");
+        let csv_path_str = csv_path.to_str().unwrap();
+        let db_service = Arc::new(DatabaseService::new(csv_path_str));
+        
+        // Set up mock client
+        let (mock_client, _) = setup_mock_client();
+        let mock_client = Arc::new(mock_client);
+        
+        // Create app state
+        let app_state = Arc::new(AppState {
+            client: Arc::clone(&mock_client),
+            database: Arc::clone(&db_service),
+            user_field_name: "user_field_name".to_string(),
+            dept_field_name: "department_field_name".to_string(),
+            xa_room_id: "room1".to_string(),
+            cd_room_id: "room2".to_string(),
+            skip_meeting_creation: false,
+            skip_room_booking: false,
+            webhook_auth_token: None,
+        });
+        
+        // Create the router in PRODUCTION mode
+        let router = create_router(app_state.clone(), true);
+        
+        // Set up the test server
+        let config = TestServerConfig::builder()
+            .mock_transport()
+            .build();
+        let server = TestServer::new_with_config(router, config).unwrap();
+        
+        // Create a form submission for testing
+        let form_payload = json!({
+            "form": "test_form",
+            "form_name": "Test Form",
+            "entry": {
+                "token": "production_mode_test",
+                "field_1": [
+                    {
+                        "item_name": "Conference Room A",
+                        "scheduled_label": "2025-03-30 09:00-10:00",
+                        "number": 1,
+                        "scheduled_at": "2025-03-30T01:00:00.000Z",
+                        "api_code": "CODE1"
+                    }
+                ],
+                "field_8": "Production Mode Test Meeting",
+                "user_field_name": "Test User",
+                "department_field_name": "Test Department",
+                "reservation_status_fsf_field": "已预约"
+            }
+        });
+        
+        // Health endpoint should be accessible
+        let response = server.get("/health").await;
+        assert_eq!(response.status_code(), StatusCode::OK);
+        
+        // Webhook endpoint should be accessible
+        let response = server
+            .post("/webhook/form-submission")
+            .json(&form_payload)
+            .await;
+        assert_eq!(response.status_code(), StatusCode::OK);
+        
+        // Management API endpoints should NOT be accessible
+        let response = server.get("/meeting-rooms").await;
+        assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+        
+        let response = server
+            .post("/meetings")
+            .json(&json!({ "subject": "Test Meeting" }))
+            .await;
+        assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+        
+        let response = server
+            .post("/meetings/123/cancel")
+            .json(&json!({}))
+            .await;
+        assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
     }
 }

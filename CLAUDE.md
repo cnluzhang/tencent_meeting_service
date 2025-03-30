@@ -120,6 +120,7 @@ WEBHOOK_AUTH_TOKEN=your_secure_token  # Authentication token for webhook endpoin
 # Feature toggles (optional)
 SKIP_MEETING_CREATION=false  # Set to true to only store in database without API calls
 SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
+ENVIRONMENT=development      # Set to "production" to only expose webhook and health endpoints
 
 # Database configuration (optional)
 MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
@@ -129,6 +130,14 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 - `SKIP_MEETING_CREATION=true` - Simulation mode: processes forms but doesn't make API calls
 - `SKIP_ROOM_BOOKING=true` - Creates meetings but skips room booking API calls
 - Both toggles can be used in combination for different testing scenarios
+- `ENVIRONMENT=production` - Restricts exposed endpoints to only webhook and health endpoints
+
+## Production Mode
+- Set `ENVIRONMENT=production` to run the service in production mode
+- Only exposes the webhook endpoint (`/webhook/form-submission`) and health check endpoint (`/health`)
+- Restricts access to management API endpoints for security
+- Recommended for production deployments to minimize attack surface
+- Use together with webhook authentication for maximum security
 
 ## Graceful Shutdown
 - Service includes graceful shutdown support for SIGTERM and SIGINT (Ctrl+C) signals

@@ -83,6 +83,17 @@ async fn main() {
     } else {
         info!("No webhook authentication token provided - authentication disabled");
     }
+    
+    // Check if running in production mode
+    let is_production = env::var("ENVIRONMENT")
+        .map(|val| val.to_lowercase() == "production")
+        .unwrap_or(false);
+        
+    if is_production {
+        info!("Running in PRODUCTION mode - restricting available endpoints");
+    } else {
+        info!("Running in DEVELOPMENT mode - all endpoints will be available");
+    }
 
     // Create shared application state
     let app_state = Arc::new(AppState {
@@ -97,8 +108,8 @@ async fn main() {
         webhook_auth_token,
     });
 
-    // Create router with all routes
-    let app = create_router(app_state).layer(
+    // Create router with appropriate routes based on environment
+    let app = create_router(app_state, is_production).layer(
         ServiceBuilder::new()
             .layer(HandleErrorLayer::new(handle_error))
             .load_shed()

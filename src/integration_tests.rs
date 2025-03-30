@@ -36,8 +36,8 @@ mod integration_tests {
             webhook_auth_token: None,        // No auth token for integration tests
         });
 
-        // Create router
-        let app = create_router(app_state);
+        // Create router - always use development mode in tests
+        let app = create_router(app_state, false);
 
         // Create test server
         let config = TestServerConfig::builder().mock_transport().build();
@@ -197,8 +197,8 @@ mod integration_tests {
             webhook_auth_token: None,        // No auth token for integration tests
         });
 
-        // Create router
-        let app = create_router(app_state);
+        // Create router - always use development mode for tests
+        let app = create_router(app_state, false);
 
         // Create test server
         let config = TestServerConfig::builder().mock_transport().build();

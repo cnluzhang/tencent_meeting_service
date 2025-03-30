@@ -97,6 +97,7 @@ RUST_LOG=info
 # Feature toggles (optional)
 SKIP_MEETING_CREATION=false  # Set to true to only store in database without API calls
 SKIP_ROOM_BOOKING=false      # Set to true to create meetings but skip room booking
+ENVIRONMENT=development      # Set to "production" to restrict endpoints for production
 
 # Database configuration (optional)
 MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
@@ -104,7 +105,7 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 
 ## Feature Toggles
 
-The service supports two feature toggles to control its behavior:
+The service supports several environment variables to control its behavior:
 
 1. **SKIP_MEETING_CREATION** - When set to `true`:
    - No API calls are made to Tencent Meeting for meeting creation/cancellation
@@ -116,6 +117,12 @@ The service supports two feature toggles to control its behavior:
    - Meetings are created normally in Tencent Meeting
    - No room booking API calls are made
    - Useful when room booking is handled separately
+
+3. **ENVIRONMENT** - When set to `production`:
+   - Only exposes the webhook endpoint (`/webhook/form-submission`) and health check (`/health`)
+   - Restricts all management API endpoints for security
+   - Reduces attack surface for production deployments
+   - Recommended for any public-facing deployment
 
 ## Data Storage
 
