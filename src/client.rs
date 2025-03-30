@@ -27,7 +27,7 @@ impl Error for TencentApiError {}
 // We use reqwest::Error directly for errors
 
 // Meeting room response types
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeetingRoomItem {
     pub meeting_room_id: String,
     pub meeting_room_name: String,
@@ -200,7 +200,7 @@ pub struct CreateMeetingRequest {
     pub allow_enterprise_intranet_only: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeetingInfo {
     pub subject: String,
     pub meeting_id: String,

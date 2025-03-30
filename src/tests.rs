@@ -5,6 +5,14 @@ mod auth_tests {
     use crate::auth::TencentAuth;
 }
 
+// Include client tests
+#[path = "client_test.rs"]
+mod client_tests;
+
+// Include integration tests
+#[path = "integration_tests.rs"]
+mod integration_tests;
+
 // Database tests
 #[cfg(test)]
 mod database_tests {

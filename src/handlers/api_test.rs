@@ -9,12 +9,14 @@ mod api_tests {
         Router,
     };
     use axum_test::{TestServer, TestServerConfig};
+    use chrono::Utc;
     use tempfile::tempdir;
     use tower::ServiceExt;
     use serde_json::json;
     
     use crate::client_mock::{MockTencentMeetingClient, setup_mock_client};
-    use crate::handlers::api::{AppState, webhook_form_submission};
+    use crate::handlers::api::{AppState, webhook_form_submission, get_meeting_rooms};
+    use crate::models::common::PaginationParams;
     use crate::models::form::FormSubmission;
     use crate::services::database::DatabaseService;
     use crate::routes::create_router;
@@ -40,6 +42,41 @@ mod api_tests {
             default_room_id: "room1".to_string(),
             skip_meeting_creation: false,
             skip_room_booking: false,
+        };
+        
+        // Create the router
+        let router = create_router(app_state.clone());
+        
+        // Set up the test server
+        let config = TestServerConfig::builder()
+            .mock_transport()
+            .build();
+        let server = TestServer::new_with_config(router, config).unwrap();
+        
+        (server, mock_client, db_service)
+    }
+    
+    // Helper function for simulation mode
+    async fn setup_simulation_test_server() -> (TestServer, Arc<MockTencentMeetingClient>, Arc<DatabaseService>) {
+        // Create a temporary database
+        let dir = tempdir().unwrap();
+        let csv_path = dir.path().join("test_meetings.csv");
+        let csv_path_str = csv_path.to_str().unwrap();
+        let db_service = Arc::new(DatabaseService::new(csv_path_str));
+        
+        // Set up mock client
+        let (mock_client, _) = setup_mock_client();
+        let mock_client = Arc::new(mock_client);
+        
+        // Create app state with simulation mode enabled
+        let app_state = AppState {
+            client: Arc::clone(&mock_client),
+            database: Arc::clone(&db_service),
+            user_field_name: "user_field_name".to_string(),
+            dept_field_name: "department_field_name".to_string(),
+            default_room_id: "room1".to_string(),
+            skip_meeting_creation: true,  // Simulation mode ON
+            skip_room_booking: true,      // Simulation mode ON
         };
         
         // Create the router
@@ -196,6 +233,11 @@ mod api_tests {
         
         // Check the response for cancellation
         assert_eq!(result.status(), StatusCode::OK);
+        
+        // Verify cancellation status in the database
+        let meetings = db_service.find_all_meetings_by_token("test_token_123").unwrap();
+        assert_eq!(meetings.len(), 1);
+        assert_eq!(meetings[0].status, "已取消");
     }
     
     #[tokio::test]
@@ -224,6 +266,54 @@ mod api_tests {
         // Verify the response contains room data
         let body: serde_json::Value = response.json();
         assert!(body.as_object().unwrap().contains_key("meeting_room_list"));
+    }
+    
+    #[tokio::test]
+    async fn test_meeting_rooms_handler() {
+        // Set up the mock client and app state
+        let (mock_client, _) = setup_mock_client();
+        let mock_client = Arc::new(mock_client);
+        
+        // Create a temporary database
+        let dir = tempdir().unwrap();
+        let csv_path = dir.path().join("test_meetings.csv");
+        let csv_path_str = csv_path.to_str().unwrap();
+        let db_service = Arc::new(DatabaseService::new(csv_path_str));
+        
+        // Create app state
+        let app_state = AppState {
+            client: Arc::clone(&mock_client),
+            database: Arc::clone(&db_service),
+            user_field_name: "user_field_name".to_string(),
+            dept_field_name: "department_field_name".to_string(),
+            default_room_id: "room1".to_string(),
+            skip_meeting_creation: false,
+            skip_room_booking: false,
+        };
+        
+        // Test pagination parameters
+        let pagination = PaginationParams {
+            page: 1,
+            page_size: 10,
+        };
+        
+        // Call the handler directly
+        let result = get_meeting_rooms(
+            State(app_state),
+            axum::extract::Query(pagination),
+        ).await;
+        
+        // Check the response
+        assert_eq!(result.status(), StatusCode::OK);
+        
+        // Parse the response body
+        let body = hyper::body::to_bytes(result.into_body()).await.unwrap();
+        let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        
+        // Check the structure
+        assert!(response.as_object().unwrap().contains_key("meeting_room_list"));
+        assert!(response.as_object().unwrap().contains_key("total_count"));
+        assert!(response.as_object().unwrap().contains_key("current_page"));
     }
     
     #[tokio::test]
@@ -320,5 +410,113 @@ mod api_tests {
         // Check for the single slot meeting
         let single_record = all_records.iter().find(|r| r.scheduled_label == "2025-03-30 13:00-14:00");
         assert!(single_record.is_some());
+    }
+    
+    #[tokio::test]
+    async fn test_simulation_mode() {
+        // Set up test server with simulation mode enabled
+        let (server, _, db_service) = setup_simulation_test_server().await;
+        
+        // Create a simple reservation request
+        let payload = json!({
+            "form": "test_form",
+            "form_name": "Test Form",
+            "entry": {
+                "token": "simulation_token",
+                "field_1": [
+                    {
+                        "item_name": "Conference Room A",
+                        "scheduled_label": "2025-03-30 09:00-10:00",
+                        "number": 1,
+                        "scheduled_at": "2025-03-30T01:00:00.000Z",
+                        "api_code": "CODE1"
+                    }
+                ],
+                "field_8": "Simulation Meeting",
+                "user_field_name": "Test User",
+                "department_field_name": "Test Department",
+                "reservation_status_fsf_field": "已预约"
+            }
+        });
+        
+        // Send the request
+        let response = server.post("/webhook/form-submission")
+            .json(&payload)
+            .await;
+        
+        // Check the response
+        assert_eq!(response.status_code(), StatusCode::OK);
+        let body: serde_json::Value = response.json();
+        assert_eq!(body["success"], json!(true));
+        assert!(body["simulation_mode"].as_bool().unwrap());
+        
+        // Check that the simulated meeting was stored
+        let meetings = db_service.find_all_meetings_by_token("simulation_token").unwrap();
+        assert_eq!(meetings.len(), 1);
+        
+        // In simulation mode, meeting IDs are set to "SIMULATION"
+        assert_eq!(meetings[0].meeting_id, "SIMULATION");
+    }
+    
+    #[tokio::test]
+    async fn test_invalid_form_submission() {
+        let (server, _, _) = setup_test_server().await;
+        
+        // Create an invalid form submission (missing required fields)
+        let invalid_payload = json!({
+            "form": "test_form",
+            "form_name": "Test Form",
+            "entry": {
+                "token": "invalid_token",
+                // Missing field_1
+                "field_8": "Test Meeting",
+                "user_field_name": "Test User",
+                "department_field_name": "Test Department",
+                "reservation_status_fsf_field": "已预约"
+            }
+        });
+        
+        // Send the request
+        let response = server.post("/webhook/form-submission")
+            .json(&invalid_payload)
+            .await;
+        
+        // Should return a 400 Bad Request
+        assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+    }
+    
+    #[tokio::test]
+    async fn test_form_with_unknown_status() {
+        let (server, _, _) = setup_test_server().await;
+        
+        // Create a form with an unknown status
+        let unknown_status_payload = json!({
+            "form": "test_form",
+            "form_name": "Test Form",
+            "entry": {
+                "token": "unknown_status_token",
+                "field_1": [
+                    {
+                        "item_name": "Conference Room A",
+                        "scheduled_label": "2025-03-30 09:00-10:00",
+                        "number": 1,
+                        "scheduled_at": "2025-03-30T01:00:00.000Z",
+                        "api_code": "CODE1"
+                    }
+                ],
+                "field_8": "Test Meeting",
+                "user_field_name": "Test User",
+                "department_field_name": "Test Department",
+                "reservation_status_fsf_field": "UNKNOWN_STATUS" // Not a valid status
+            }
+        });
+        
+        // Send the request
+        let response = server.post("/webhook/form-submission")
+            .json(&unknown_status_payload)
+            .await;
+        
+        // Should return a 400 Bad Request
+        assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
     }
 }

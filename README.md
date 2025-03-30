@@ -10,7 +10,7 @@ A web service that provides a bridge between form services and Tencent Meeting A
 - Production and development environments
 - Mock testing endpoints
 - Configurable via environment variables
-- Comprehensive test suite with 16+ automated tests
+- Comprehensive test suite with 30+ automated tests
 
 ## Project Structure
 
@@ -152,10 +152,21 @@ Run a specific test module:
 docker compose exec dev cargo test database_tests
 ```
 
+Run a specific group of tests:
+
+```bash
+docker compose exec dev cargo test client_tests  # Run all client tests
+docker compose exec dev cargo test integration_tests  # Run integration tests
+```
+
 The test suite includes:
 - Database operation tests
 - Time slot processing tests
 - Authentication tests
+- Client API tests
+- Handler tests
+- Integration tests with simulated API calls
+- Error handling tests
 
 ## Production Deployment
 
@@ -215,10 +226,12 @@ The project uses a modular architecture to improve maintainability and separatio
 5. **Client** (`src/client.rs`) - Tencent Meeting API client
    - Handles communication with the Tencent Meeting API
    - Encapsulates request/response handling
+   - Comprehensive mocking support for testing
 
 6. **Authentication** (`src/auth.rs`) - Authentication utilities
    - HMAC-SHA256 signature generation
    - Nonce and timestamp utilities
+   - Tested signature validation
    
 7. **Database** (`src/services/database.rs`) - Simple CSV-based storage
    - Stores meeting records in a persistent CSV file

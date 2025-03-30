@@ -52,10 +52,40 @@ The project includes a comprehensive test suite covering core functionality:
 - `test_get_timestamp`: Tests timestamp generation for API requests
 - `test_generate_signature`: Tests HMAC-SHA256 signature generation
 
+### Client Tests
+- `test_list_rooms`: Tests retrieving meeting rooms
+- `test_create_meeting`: Tests creating a meeting
+- `test_cancel_meeting`: Tests cancelling a meeting
+- `test_book_rooms`: Tests booking rooms for a meeting
+- `test_release_rooms`: Tests releasing previously booked rooms
+- `test_workflow_create_book_cancel_release`: Tests the complete meeting lifecycle
+
+### API Handler Tests
+- `test_webhook_form_submission`: Tests form submission handling
+- `test_webhook_form_cancellation`: Tests cancellation form handling
+- `test_health_endpoint`: Tests the service health check endpoint
+- `test_meeting_rooms_endpoint`: Tests the meeting rooms listing endpoint
+- `test_meeting_rooms_handler`: Tests the meeting rooms handler directly
+- `test_multiple_time_slots`: Tests handling submissions with multiple time slots
+- `test_simulation_mode`: Tests the simulation mode feature
+- `test_invalid_form_submission`: Tests validation of incorrect form data
+- `test_form_with_unknown_status`: Tests handling of forms with invalid status values
+
+### Integration Tests
+- `test_complete_reservation_workflow`: Tests the end-to-end reservation workflow
+- `test_multi_slot_reservation_with_merging`: Tests merging of consecutive time slots
+- `test_simulation_mode`: Tests the end-to-end simulation mode behavior
+- `test_error_handling_invalid_form`: Tests system error handling
+- `test_concurrent_requests`: Tests parallel processing of multiple requests
+- `test_list_meeting_rooms`: Tests the meeting rooms listing endpoint in context
+
 ### Running Tests
 - Run all tests: `docker compose exec dev cargo test`
 - Run specific module: `docker compose exec dev cargo test database_tests`
 - Run with output: `docker compose exec dev cargo test -- --nocapture`
+- Run a specific test: `docker compose exec dev cargo test test_simulation_mode`
+- Run integration tests only: `docker compose exec dev cargo test integration_tests`
+- Run client tests only: `docker compose exec dev cargo test client_tests`
 
 ## API Endpoints
 - `GET /health` - Health check endpoint
