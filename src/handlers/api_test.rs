@@ -250,7 +250,7 @@ mod api_tests {
         // Check the response
         assert_eq!(response.status_code(), StatusCode::OK);
         let body = response.text();
-        assert_eq!(body, "Service is healthy");
+        assert_eq!(body, "OK");
     }
     
     #[tokio::test]

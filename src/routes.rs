@@ -8,7 +8,7 @@ use crate::handlers::api::{
     book_rooms, cancel_meeting, create_meeting, handle_form_submission, list_meeting_rooms,
     release_rooms, AppState,
 };
-use crate::handlers::test::{health_check, test_endpoint, test_form_submission, test_meetings};
+use crate::handlers::test::{health_check};
 
 pub fn create_router(app_state: Arc<AppState>) -> Router {
     // API routes
@@ -20,16 +20,13 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .route("/meetings/:meeting_id/release-rooms", post(release_rooms))
         .route("/webhook/form-submission", post(handle_form_submission));
 
-    // Test routes
-    let test_routes = Router::new()
-        .route("/health", get(health_check))
-        .route("/test", get(test_endpoint))
-        .route("/test-meetings", get(test_meetings))
-        .route("/test-form-submission", get(test_form_submission));
+    // Health check
+    let health_route = Router::new()
+        .route("/health", get(health_check));
 
     // Combine routes
     Router::new()
         .merge(api_routes)
-        .merge(test_routes)
+        .merge(health_route)
         .with_state(app_state)
 }

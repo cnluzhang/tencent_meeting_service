@@ -210,6 +210,8 @@ pub fn setup_mock_client() -> (MockTencentMeetingClient, Arc<MockDataStore>) {
     let store_ref3 = Arc::clone(&data_store);
     mock_client.expect_cancel_meeting()
         .returning(move |meeting_id, _request| {
+            // Cancel the meeting in the store
+            let _cancelled = store_ref3.cancel_meeting(meeting_id);
             // For testing purposes, we'll always succeed
             // This is a simplification to avoid creating reqwest::Error objects
             Ok(())
@@ -219,6 +221,8 @@ pub fn setup_mock_client() -> (MockTencentMeetingClient, Arc<MockDataStore>) {
     let store_ref4 = Arc::clone(&data_store);
     mock_client.expect_book_rooms()
         .returning(move |meeting_id, request| {
+            // Book the rooms in the store
+            let _booked = store_ref4.book_room(meeting_id, &request.meeting_room_id_list);
             // For testing purposes, we'll always succeed
             // This is a simplification to avoid creating reqwest::Error objects
             Ok(())
@@ -228,6 +232,8 @@ pub fn setup_mock_client() -> (MockTencentMeetingClient, Arc<MockDataStore>) {
     let store_ref5 = Arc::clone(&data_store);
     mock_client.expect_release_rooms()
         .returning(move |meeting_id, _request| {
+            // Release the rooms in the store
+            let _released = store_ref5.release_room(meeting_id);
             // For testing purposes, we'll always succeed
             // This is a simplification to avoid creating reqwest::Error objects
             Ok(())

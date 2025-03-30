@@ -4,7 +4,7 @@
 
 ### Quick Test Environment
 - Start test server: `docker compose -f docker-compose.test.yml up -d`
-- Access test endpoint: `http://localhost:3001/test`
+- Access health check: `http://localhost:3001/health`
 - View logs: `docker compose -f docker-compose.test.yml logs -f`
 - Stop test server: `docker compose -f docker-compose.test.yml down`
 
@@ -89,9 +89,6 @@ The project includes a comprehensive test suite covering core functionality:
 
 ## API Endpoints
 - `GET /health` - Health check endpoint
-- `GET /test` - Test endpoint with mock data
-- `GET /test-meetings` - Test endpoint with sample meeting creation/cancellation requests
-- `GET /test-form-submission` - Test endpoint with sample form webhook payload
 - `GET /meeting-rooms?page=1&page_size=20` - Get meeting rooms with pagination
 - `POST /meetings` - Create a new meeting
 - `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting

@@ -8,8 +8,8 @@ A web service that provides a bridge between form services and Tencent Meeting A
 - Secure authentication with Tencent Meeting API
 - Docker-ready for easy deployment
 - Production and development environments
-- Mock testing endpoints
 - Configurable via environment variables
+- Health check endpoint for monitoring
 - Comprehensive test suite with 30+ automated tests
 
 ## Project Structure
@@ -44,9 +44,6 @@ tencent_meeting_service/
 ## API Endpoints
 
 - `GET /health` - Health check endpoint
-- `GET /test` - Test endpoint that returns mock meeting room data
-- `GET /test-meetings` - Test endpoint with sample meeting creation/cancellation requests
-- `GET /test-form-submission` - Test endpoint with sample form webhook payload
 - `GET /meeting-rooms?page=1&page_size=20` - Get meeting rooms with pagination
 - `POST /meetings` - Create a new meeting with Tencent Meeting API
 - `POST /meetings/{meeting_id}/cancel` - Cancel an existing meeting
@@ -118,9 +115,8 @@ The simplest way to test the service is using the provided test Docker configura
 docker compose -f docker-compose.test.yml up -d
 ```
 
-The test server will be available at `http://localhost:3001`. You can access the mock endpoint at:
-- `http://localhost:3001/test` - Returns mock meeting room data
-- `http://localhost:3001/health` - Health check
+The test server will be available at `http://localhost:3001`. You can access the health check at:
+- `http://localhost:3001/health` - Health check endpoint
 
 ## Development with Docker
 
@@ -304,7 +300,7 @@ For meeting cancellation:
 4. Then it cancels the meeting
 5. Finally, it updates the database with the cancellation status
 
-You can test this integration using the `/test-form-submission` endpoint that provides a sample payload.
+You can test this integration by sending a properly formatted payload to the `/webhook/form-submission` endpoint.
 
 ## Error Handling
 
