@@ -33,6 +33,37 @@ pub fn get_room_id_for_form(form_name: &str, xa_room_id: &str, cd_room_id: &str)
     }
 }
 
+// Helper function to get operator name and ID from form submission
+pub fn get_operator_info(client: &TencentMeetingClient, form: &FormSubmission, user_field_name: &str) -> (String, String) {
+    // Extract the user name from the form using the configured field name
+    let operator_name = match form.entry.extra_fields.get(user_field_name) {
+        Some(value) => {
+            // Extract the string value
+            if let Some(name_str) = value.as_str() {
+                debug!("Found operator name '{}' in field '{}'", name_str, user_field_name);
+                name_str.to_string()
+            } else {
+                // Convert other types to string if possible
+                let name = value.to_string().trim_matches('"').to_string();
+                debug!("Converted operator name '{}' from field '{}'", name, user_field_name);
+                name
+            }
+        },
+        None => {
+            // If field is not found, use a default value
+            warn!("User field '{}' not found in form submission, using default", user_field_name);
+            "default".to_string()
+        }
+    };
+    
+    // Get the corresponding operator ID
+    let operator_id = client.get_operator_id_by_name(&operator_name);
+    
+    info!("Resolved operator name '{}' to ID '{}'", operator_name, operator_id);
+    
+    (operator_name, operator_id)
+}
+
 // Parse a scheduled time from a form field item
 pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String> {
     // Parse the scheduled time
@@ -141,21 +172,25 @@ pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
 // Create a meeting with the given time slot
 pub async fn create_meeting_with_time_slot(
     client: &TencentMeetingClient,
-    _dept_field_name: &str,
+    _dept_field_name: &str, // Preserved for API compatibility
     form_submission: &FormSubmission,
     time_slot: &TimeSlot,
+    user_field_name: &str,
 ) -> Result<MeetingResult, StatusCode> {
-    // Create meeting request with the operator_id from the client
+    // Get operator information based on the form submission
+    let (operator_name, operator_id) = get_operator_info(client, form_submission, user_field_name);
+    
+    // Create meeting request with the specific operator ID from form data
     let meeting_request = CreateMeetingRequest {
-        userid: client.get_operator_id().to_string(),
+        userid: operator_id.clone(),
         instanceid: 32,
         subject: form_submission.entry.field_8.clone(),
         type_: 0, // Scheduled meeting
         _type: 0,
         hosts: Some(vec![User {
-            userid: client.get_operator_id().to_string(),
+            userid: operator_id.clone(),
             is_anonymous: None,
-            nick_name: None,
+            nick_name: Some(operator_name.clone()),
         }]),
         invitees: None,
         start_time: time_slot.start_time.timestamp().to_string(),
@@ -239,9 +274,10 @@ pub async fn create_meeting_with_time_slot(
 // Create a merged meeting from multiple time slots
 pub async fn create_merged_meeting(
     client: &TencentMeetingClient,
-    _dept_field_name: &str,
+    _dept_field_name: &str, // Preserved for API compatibility
     form_submission: &FormSubmission,
     time_slots: &[TimeSlot],
+    user_field_name: &str,
 ) -> Result<MeetingResult, StatusCode> {
     if time_slots.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
@@ -261,27 +297,31 @@ pub async fn create_merged_meeting(
         .iter()
         .map(|slot| slot.scheduled_label.clone())
         .collect();
+        
+    // Get operator information based on the form submission
+    let (operator_name, operator_id) = get_operator_info(client, form_submission, user_field_name);
 
     // Log merged slot details
     info!(
-        "Creating merged time slot for room: {}, slots: {}, time range: {}-{}",
+        "Creating merged time slot for room: {}, slots: {}, time range: {}-{} with operator: {}",
         room_name,
         time_slots.len(),
         start_time,
-        end_time
+        end_time,
+        operator_name
     );
 
-    // Create meeting request with merged time
+    // Create meeting request with merged time and specific operator
     let meeting_request = CreateMeetingRequest {
-        userid: client.get_operator_id().to_string(),
+        userid: operator_id.clone(),
         instanceid: 32,
         subject: form_submission.entry.field_8.clone(),
         type_: 0, // Scheduled meeting
         _type: 0,
         hosts: Some(vec![User {
-            userid: client.get_operator_id().to_string(),
+            userid: operator_id.clone(),
             is_anonymous: None,
-            nick_name: None,
+            nick_name: Some(operator_name.clone()),
         }]),
         invitees: None,
         start_time: start_time.timestamp().to_string(),

@@ -271,6 +271,8 @@ pub struct ReleaseRoomsRequest {
     pub meeting_room_id_list: Vec<String>,
 }
 
+use crate::models::meeting::Operator;
+
 /// Client for Tencent Meeting API
 pub struct TencentMeetingClient {
     client: Client,
@@ -279,7 +281,8 @@ pub struct TencentMeetingClient {
     secret_key: String,
     endpoint: String,
     sdk_id: String,
-    operator_id: String,
+    operators: Vec<Operator>,
+    default_operator_id: String,
 }
 
 impl Default for TencentMeetingClient {
@@ -293,6 +296,14 @@ impl TencentMeetingClient {
     pub fn new() -> Self {
         dotenv().ok();
 
+        // Parse the operators from the environment variable
+        let operators = Self::parse_operators_from_env();
+        
+        // Get the default operator ID (first one or "admin")
+        let default_operator_id = operators.first()
+            .map(|op| op.id.clone())
+            .unwrap_or_else(|| "admin".to_string());
+            
         Self {
             client: Client::new(),
             app_id: env::var("TENCENT_MEETING_APP_ID")
@@ -304,14 +315,63 @@ impl TencentMeetingClient {
             endpoint: env::var("TENCENT_MEETING_API_ENDPOINT")
                 .unwrap_or_else(|_| "https://api.meeting.qq.com".to_string()),
             sdk_id: env::var("TENCENT_MEETING_SDK_ID").unwrap_or_default(),
-            operator_id: env::var("TENCENT_MEETING_OPERATOR_ID")
-                .unwrap_or_else(|_| "admin".to_string()),
+            operators,
+            default_operator_id,
+        }
+    }
+    
+    /// Parse operators from environment variable
+    /// Format: "name1:id1,name2:id2,name3:id3"
+    fn parse_operators_from_env() -> Vec<Operator> {
+        match env::var("TENCENT_MEETING_OPERATOR_ID") {
+            Ok(value) => {
+                let mut operators = Vec::new();
+                
+                for pair in value.split(',') {
+                    let parts: Vec<&str> = pair.trim().split(':').collect();
+                    if parts.len() == 2 {
+                        operators.push(Operator {
+                            name: parts[0].trim().to_string(),
+                            id: parts[1].trim().to_string(),
+                        });
+                    }
+                }
+                
+                // Log the number of operators loaded
+                info!("Loaded {} operators from environment", operators.len());
+                operators
+            },
+            Err(_) => {
+                info!("No operators defined in environment, using default");
+                vec![Operator {
+                    name: "admin".to_string(),
+                    id: "admin".to_string(),
+                }]
+            }
         }
     }
 
-    /// Get the operator ID configured for this client
+    /// Get the operator ID for a given name
+    pub fn get_operator_id_by_name(&self, name: &str) -> String {
+        for operator in &self.operators {
+            if operator.name.eq_ignore_ascii_case(name) {
+                return operator.id.clone();
+            }
+        }
+        
+        // If no match found, return the default operator ID
+        info!("No operator found for name '{}', using default", name);
+        self.default_operator_id.clone()
+    }
+    
+    /// Get the default operator ID configured for this client
     pub fn get_operator_id(&self) -> &str {
-        &self.operator_id
+        &self.default_operator_id
+    }
+    
+    /// Get all available operators
+    pub fn get_operators(&self) -> &[Operator] {
+        &self.operators
     }
 
     /// Generate signature for Tencent Meeting API requests
@@ -344,7 +404,7 @@ impl TencentMeetingClient {
         let uri = "/v1/meeting-rooms";
         let query = format!(
             "?page={}&page_size={}&operator_id={}&operator_id_type=1",
-            page, page_size, &self.operator_id
+            page, page_size, &self.default_operator_id
         );
         let full_uri = format!("{}{}", uri, query);
         let url = format!("{}{}", self.endpoint, full_uri);

@@ -28,6 +28,10 @@ pub struct MeetingRecord {
     pub room_id: String,      // Room ID used for booking
     pub created_at: String,   // ISO format
     pub cancelled_at: String, // ISO format (empty if not cancelled)
+    
+    // Operator information
+    pub operator_name: String, // Name of the operator from form submission
+    pub operator_id: String,   // ID of the operator used for API calls
 }
 
 // Database service for storing form submissions and meeting data
@@ -62,6 +66,8 @@ impl DatabaseService {
                 "room_id",
                 "created_at",
                 "cancelled_at",
+                "operator_name",
+                "operator_id",
             ]) {
                 error!("Failed to write headers: {}", e);
                 panic!("Failed to write headers: {}", e);
@@ -94,6 +100,8 @@ impl DatabaseService {
         room_name: &str,
         room_id: &str,
         time_slot: &TimeSlot,
+        operator_name: &str,
+        operator_id: &str,
     ) -> Result<(), String> {
         // Use the specific time slot's label
         let scheduled_label = time_slot.scheduled_label.clone();
@@ -130,6 +138,8 @@ impl DatabaseService {
             room_id: room_id.to_string(),
             created_at: now.to_rfc3339(),
             cancelled_at: "".to_string(),
+            operator_name: operator_name.to_string(),
+            operator_id: operator_id.to_string(),
         };
         
         self.write_record(&record)
@@ -142,6 +152,8 @@ impl DatabaseService {
         meeting_id: &str,
         room_name: &str,
         room_id: &str,
+        operator_name: &str,
+        operator_id: &str,
     ) -> Result<(), String> {
         // Get the first available time slot from the form
         if let Some(first_slot) = form.entry.field_1.first() {
@@ -150,7 +162,7 @@ impl DatabaseService {
                 .map_err(|e| format!("Failed to parse time slot: {}", e))?;
                 
             // Call the new method with the parsed slot
-            self.store_meeting_with_time_slot(form, meeting_id, room_name, room_id, &parsed_slot)
+            self.store_meeting_with_time_slot(form, meeting_id, room_name, room_id, &parsed_slot, operator_name, operator_id)
         } else {
             // Fallback to default behavior if no time slots available
             // Get current time in UTC
@@ -170,6 +182,8 @@ impl DatabaseService {
                 room_id: room_id.to_string(),
                 created_at: now.to_rfc3339(),
                 cancelled_at: "".to_string(),
+                operator_name: operator_name.to_string(),
+                operator_id: operator_id.to_string(),
             };
             
             self.write_record(&record)
@@ -192,6 +206,8 @@ impl DatabaseService {
         room_name: &str,
         room_id: &str,
         time_slots: &[TimeSlot],
+        operator_name: &str,
+        operator_id: &str,
     ) -> Result<(), String> {
         // Sort time slots to ensure correct ordering
         let mut sorted_slots = time_slots.to_vec();
@@ -241,6 +257,8 @@ impl DatabaseService {
             room_id: room_id.to_string(),
             created_at: now.to_rfc3339(),
             cancelled_at: "".to_string(),
+            operator_name: operator_name.to_string(),
+            operator_id: operator_id.to_string(),
         };
 
         self.write_record(&record)
@@ -479,6 +497,27 @@ impl DatabaseService {
         record: &StringRecord,
     ) -> Result<MeetingRecord, String> {
         if record.len() < 12 {
+            // For backward compatibility with old records without operator fields
+            if record.len() == 12 {
+                return Ok(MeetingRecord {
+                    entry_token: record.get(0).unwrap_or_default().to_string(),
+                    form_id: record.get(1).unwrap_or_default().to_string(),
+                    form_name: record.get(2).unwrap_or_default().to_string(),
+                    subject: record.get(3).unwrap_or_default().to_string(),
+                    room_name: record.get(4).unwrap_or_default().to_string(),
+                    scheduled_at: record.get(5).unwrap_or_default().to_string(),
+                    scheduled_label: record.get(6).unwrap_or_default().to_string(),
+                    status: record.get(7).unwrap_or_default().to_string(),
+                    meeting_id: record.get(8).unwrap_or_default().to_string(),
+                    room_id: record.get(9).unwrap_or_default().to_string(),
+                    created_at: record.get(10).unwrap_or_default().to_string(),
+                    cancelled_at: record.get(11).unwrap_or_default().to_string(),
+                    // Default values for backward compatibility
+                    operator_name: "default".to_string(),
+                    operator_id: "admin".to_string(),
+                });
+            }
+            
             return Err(format!("Invalid record length: {}", record.len()));
         }
 
@@ -495,6 +534,8 @@ impl DatabaseService {
             room_id: record.get(9).unwrap_or_default().to_string(),
             created_at: record.get(10).unwrap_or_default().to_string(),
             cancelled_at: record.get(11).unwrap_or_default().to_string(),
+            operator_name: record.get(12).unwrap_or_default().to_string(),
+            operator_id: record.get(13).unwrap_or_default().to_string(),
         })
     }
 

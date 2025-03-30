@@ -74,7 +74,8 @@ TENCENT_MEETING_APP_ID=your_app_id
 TENCENT_MEETING_SECRET_ID=your_secret_id
 TENCENT_MEETING_SECRET_KEY=your_secret_key
 TENCENT_MEETING_SDK_ID=your_sdk_id
-TENCENT_MEETING_OPERATOR_ID=your_operator_id
+# Format: name1:id1,name2:id2,name3:id3 (supports all current operators)
+TENCENT_MEETING_OPERATOR_ID=name1:id1,name2:id2,name3:id3
 
 # Form field mappings (required)
 FORM_USER_FIELD_NAME=user_field_name
@@ -192,6 +193,17 @@ The service will be available at `http://localhost:3000`.
 
 This service implements the AKSK (AppId, SecretId, SecretKey) authentication method for Tencent Meeting API. The authentication logic is encapsulated in the `auth.rs` module, which provides utilities for generating signatures, timestamps, and nonces for API requests following Tencent's specifications.
 
+### Multiple Operator Support
+
+The service supports dynamic operator selection based on form submissions:
+
+- Configure any number of operators using the `TENCENT_MEETING_OPERATOR_ID` environment variable (currently 42 operators are used)
+- Format: `name1:id1,name2:id2,name3:id3,...`
+- When a form is submitted, the system looks up the matching operator by name from the form field specified in `FORM_USER_FIELD_NAME`
+- The matched operator's ID is used for all API calls related to that meeting
+- If no match is found, the first operator is used as default
+- Each meeting record stores both the operator name and ID for tracking purposes
+
 The `TencentAuth` struct provides the following functionality:
 - `generate_signature` - Creates HMAC-SHA256 signatures for API requests
 - `generate_nonce` - Generates random nonces for request uniqueness
@@ -236,6 +248,7 @@ The project uses a modular architecture to improve maintainability and separatio
 5. **Client** (`src/client.rs`) - Tencent Meeting API client
    - Handles communication with the Tencent Meeting API
    - Encapsulates request/response handling
+   - Supports multiple operators with dynamic selection based on form data
    - Comprehensive mocking support for testing
 
 6. **Authentication** (`src/auth.rs`) - Authentication utilities
@@ -288,7 +301,7 @@ The service processes this data as follows:
 - Meeting subject is taken from field_8
 - Meeting time is taken from scheduled_at (in UTC format)
 - Meeting duration is calculated from the time range in scheduled_label (e.g., "09:00-10:00")
-- The operator_id from environment variables is used as the meeting creator/host
+- The operator_id is determined by matching the user name from the form with the configured operator mappings
 - Location is set based on form name ('西安-大会议室' for Xi'an forms, '成都-天府广场' for Chengdu forms)
 - Meeting instance ID is set to 32 (as required by the API)
 - After meeting creation, the appropriate meeting room based on form name is booked automatically

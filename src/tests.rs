@@ -97,7 +97,9 @@ mod database_tests {
             "meeting123", 
             "Test Room", 
             "room123", 
-            &time_slot
+            &time_slot,
+            "Test User",
+            "user123"
         );
         
         assert!(result.is_ok());
@@ -161,7 +163,9 @@ mod database_tests {
             "meeting123", 
             "Test Room", 
             "room123", 
-            &time_slots
+            &time_slots,
+            "Test User",
+            "user123"
         );
         
         assert!(result.is_ok());
@@ -199,7 +203,9 @@ mod database_tests {
             "meeting123", 
             "Test Room", 
             "room123", 
-            &time_slot
+            &time_slot,
+            "Test User",
+            "user123"
         );
         
         assert!(result.is_ok());
@@ -273,8 +279,8 @@ mod database_tests {
         };
         
         // Store two meetings with the same token but different times
-        db.store_meeting_with_time_slot(&form, "meeting1", "Room A", "room1", &time_slot1).unwrap();
-        db.store_meeting_with_time_slot(&form, "meeting2", "Room B", "room2", &time_slot2).unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting1", "Room A", "room1", &time_slot1, "Test User", "user123").unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting2", "Room B", "room2", &time_slot2, "Test User", "user123").unwrap();
         
         // Find all meetings
         let retrieved = db.find_all_meetings_by_token(&form.entry.token);
@@ -316,8 +322,8 @@ mod database_tests {
         let time_slot = create_time_slot();
         
         // Store the same meeting twice
-        db.store_meeting_with_time_slot(&form, "meeting1", "Test Room", "room1", &time_slot).unwrap();
-        db.store_meeting_with_time_slot(&form, "meeting2", "Test Room", "room1", &time_slot).unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting1", "Test Room", "room1", &time_slot, "Test User", "user123").unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting2", "Test Room", "room1", &time_slot, "Test User", "user123").unwrap();
         
         // Find all meetings - should only have one due to deduplication
         let retrieved = db.find_all_meetings_by_token(&form.entry.token);

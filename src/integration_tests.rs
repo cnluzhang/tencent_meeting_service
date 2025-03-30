@@ -29,7 +29,8 @@ mod integration_tests {
             database: Arc::clone(&db_service),
             user_field_name: "user_field_name".to_string(),
             dept_field_name: "department_field_name".to_string(),
-            default_room_id: "room1".to_string(),
+            xa_room_id: "room1".to_string(),  // Xi'an room ID
+            cd_room_id: "room2".to_string(),  // Chengdu room ID
             skip_meeting_creation: true, // SIMULATION MODE
             skip_room_booking: true,     // SIMULATION MODE
         });
@@ -194,7 +195,8 @@ mod integration_tests {
             database: Arc::clone(&db_service),
             user_field_name: "user_field_name".to_string(),
             dept_field_name: "department_field_name".to_string(),
-            default_room_id: "room1".to_string(),
+            xa_room_id: "room1".to_string(),  // Xi'an room ID
+cd_room_id: "room2".to_string(),  // Chengdu room ID
             skip_meeting_creation: true, // SIMULATION MODE
             skip_room_booking: true,     // SIMULATION MODE
         });

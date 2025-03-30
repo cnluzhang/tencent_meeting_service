@@ -85,7 +85,9 @@ mod database_tests {
             "meeting123", 
             "Test Room", 
             "room123", 
-            &time_slot
+            &time_slot,
+            "Test User",
+            "user123"
         );
         
         assert!(result.is_ok());
@@ -152,7 +154,9 @@ mod database_tests {
             "meeting123", 
             "Test Room", 
             "room123", 
-            &time_slots
+            &time_slots,
+            "operator1",
+            "op123"
         );
         
         assert!(result.is_ok());

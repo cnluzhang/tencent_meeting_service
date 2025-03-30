@@ -16,14 +16,13 @@ use crate::models::meeting::{MeetingResult, WebhookResponse};
 use crate::services::database::DatabaseService;
 use crate::services::time_slots::{
     create_meeting_with_time_slot, create_merged_meeting, find_mergeable_groups, parse_time_slot,
-    get_room_id_for_form,
+    get_room_id_for_form, get_operator_info,
 };
 
 // AppState struct containing shared resources
 pub struct AppState {
     pub client: TencentMeetingClient,
-    #[allow(dead_code)]
-    pub user_field_name: String, // Reserved for future use
+    pub user_field_name: String, // Used to identify the operator
     pub dept_field_name: String,
     pub database: Arc<DatabaseService>,
     pub xa_room_id: String,     // Xi'an meeting room ID
@@ -371,12 +370,17 @@ pub async fn handle_form_submission(
 
             // Store directly in database with merged time slot info
             let room_id = get_room_id(&state, &form_submission);
+            // Get operator information
+            let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+            
             if let Err(e) = state.database.store_merged_meeting(
                 &form_submission,
                 "simulation-merged-meeting",
                 &time_slots[0].item_name,
                 &room_id,
                 &time_slots,
+                &operator_name,
+                &operator_id,
             ) {
                 error!("Failed to store simulated meeting record: {}", e);
             }
@@ -389,6 +393,7 @@ pub async fn handle_form_submission(
                 &state.dept_field_name,
                 &form_submission,
                 &time_slots,
+                &state.user_field_name,
             )
             .await
             {
@@ -400,11 +405,16 @@ pub async fn handle_form_submission(
                         // In simulation mode, store directly in database without creating a meeting
                         info!("Simulation mode: Storing form submission in database without creating a meeting");
                         let room_id = get_room_id(&state, &form_submission);
+                        // Get operator information
+                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+                        
                         if let Err(e) = state.database.store_meeting(
                             &form_submission,
                             "simulation-meeting-id",
                             &result.room_name,
                             &room_id,
+                            &operator_name,
+                            &operator_id,
                         ) {
                             error!("Failed to store simulated meeting record: {}", e);
                         }
@@ -449,12 +459,17 @@ pub async fn handle_form_submission(
 
                         // Store meeting info in database with room ID (whether or not room was booked)
                         let room_id = get_room_id(&state, &form_submission);
+                        // Get operator information
+                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+                        
                         if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             meeting_id,
                             &result.room_name,
                             &room_id,
                             &time_slots,
+                            &operator_name,
+                            &operator_id,
                         ) {
                             error!("Failed to store meeting record: {}", e);
                             // Continue processing even if database storage fails
@@ -507,12 +522,17 @@ pub async fn handle_form_submission(
 
                         // Store directly in database with merged time slot info
                         let room_id = get_room_id(&state, &form_submission);
+                        // Get operator information
+                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+                        
                         if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             &format!("simulation-merged-meeting-{}", i),
                             &group[0].item_name,
                             &room_id,
                             group,
+                            &operator_name,
+                            &operator_id,
                         ) {
                             error!("Failed to store simulated merged meeting record: {}", e);
                         }
@@ -526,6 +546,7 @@ pub async fn handle_form_submission(
                             &state.dept_field_name,
                             &form_submission,
                             group,
+                            &state.user_field_name,
                         )
                         .await
                         {
@@ -570,12 +591,17 @@ pub async fn handle_form_submission(
                                     // Get the appropriate room ID
                                     let room_id = get_room_id(&state, &form_submission);
                                     
+                                    // Get operator information
+                                    let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+                                    
                                     if let Err(e) = state.database.store_merged_meeting(
                                         &form_submission,
                                         meeting_id,
                                         &result.room_name,
                                         &room_id,
                                         group,
+                                        &operator_name,
+                                        &operator_id,
                                     ) {
                                         error!("Failed to store meeting record: {}", e);
                                         // Continue processing even if database storage fails
@@ -616,12 +642,17 @@ pub async fn handle_form_submission(
 
                         // Store directly in database with specific time slot
                         let room_id = get_room_id(&state, &form_submission);
+                        // Get operator information
+                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+                        
                         if let Err(e) = state.database.store_meeting_with_time_slot(
                             &form_submission,
                             &format!("simulation-meeting-id-{}", i),
                             &group[0].item_name,
                             &room_id,
                             &group[0],
+                            &operator_name,
+                            &operator_id,
                         ) {
                             error!("Failed to store simulated meeting record: {}", e);
                         }
@@ -635,6 +666,7 @@ pub async fn handle_form_submission(
                             &state.dept_field_name,
                             &form_submission,
                             &group[0],
+                            &state.user_field_name,
                         )
                         .await
                         {
@@ -677,12 +709,18 @@ pub async fn handle_form_submission(
 
                                     // Always store in database with specific time slot
                                     let room_id = get_room_id(&state, &form_submission);
+                                    
+                                    // Get operator information
+                                    let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
+                                    
                                     if let Err(e) = state.database.store_meeting_with_time_slot(
                                         &form_submission,
                                         meeting_id,
                                         &result.room_name,
                                         &room_id,
                                         &group[0],
+                                        &operator_name,
+                                        &operator_id,
                                     ) {
                                         error!("Failed to store meeting record: {}", e);
                                         // Continue processing even if database storage fails

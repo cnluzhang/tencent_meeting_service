@@ -103,7 +103,8 @@ TENCENT_MEETING_APP_ID=your_app_id
 TENCENT_MEETING_SECRET_ID=your_secret_id
 TENCENT_MEETING_SECRET_KEY=your_secret_key
 TENCENT_MEETING_SDK_ID=your_sdk_id
-TENCENT_MEETING_OPERATOR_ID=your_operator_id
+# Format: name1:id1,name2:id2,name3:id3 (supports all current operators)
+TENCENT_MEETING_OPERATOR_ID=name1:id1,name2:id2,name3:id3
 
 # Form field mappings (required)
 FORM_USER_FIELD_NAME=user_field_name
@@ -131,6 +132,7 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 - Default location: `/app/data/meetings.csv`
 - Deduplication to prevent duplicate entries based on token and status
 - Database automatically handles both English and Chinese status values
+- Stores operator name and ID information for each meeting
 
 ## Code Organization
 
@@ -221,6 +223,14 @@ tencent_meeting_service/
   - `generate_signature`: Creates HMAC-SHA256 signatures for API requests
   - `generate_nonce`: Generates random 8-digit nonces for request uniqueness
   - `get_timestamp`: Provides current Unix timestamps
+
+## Operator Management
+- **Multiple Operators**: Support for multiple operators configured in environment variables (currently 42 operators are used)
+- **Operator Mapping Format**: `name1:id1,name2:id2,name3:id3,...` in TENCENT_MEETING_OPERATOR_ID
+- **Operator Selection**: Automatic matching of form submission user name to operator ID
+- **Default Fallback**: If no match found, uses first operator in the list as default
+- **Database Storage**: Stores both operator name and ID with each meeting record
+- **Helper Functions**: `get_operator_info` automatically extracts and maps operator information
 - **Signature Format**: 
   ```
   httpMethod + "\n" + 

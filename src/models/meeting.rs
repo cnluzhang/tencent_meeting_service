@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 // Structure to represent a parsed time slot
 #[derive(Debug, Clone, Serialize)]
@@ -38,4 +38,11 @@ pub struct TestMeetingResponse {
     pub name: String,
     pub status: String,
     pub message: String,
+}
+
+// Structure to represent an operator mapping
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Operator {
+    pub name: String,
+    pub id: String,
 }
