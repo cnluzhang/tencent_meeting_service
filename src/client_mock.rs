@@ -193,16 +193,10 @@ pub fn setup_mock_client() -> (MockTencentMeetingClient, Arc<MockDataStore>) {
                 meeting_id: meeting_id.clone(),
                 meeting_code,
                 password: request.password.clone(),
-                hosts: None,
                 participants: request.invitees.clone(),
-                user_non_registered: None,
                 start_time: request.start_time.clone(),
                 end_time: request.end_time.clone(),
                 join_url: Some(format!("https://example.com/join/{}", meeting_id)),
-                settings: None,
-                enable_live: request.enable_live,
-                live_config: request.live_config.clone(),
-                host_key: request.host_key.clone(),
             };
 
             // Store the meeting

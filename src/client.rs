@@ -74,82 +74,31 @@ pub struct Guest {
     pub guest_name: Option<String>,
 }
 
+// Simplified MeetingSettings with only essential fields
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeetingSettings {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mute_enable_type_join: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mute_enable_join: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_unmute_self: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub play_ivr_on_leave: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub play_ivr_on_join: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_in_before_host: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_in_waiting_room: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_screen_shared_watermark: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub water_mark_type: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub only_enterprise_user_allowed: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub only_user_join_type: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_record_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub participant_join_auto_record: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_host_pause_auto_record: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_multi_device: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub change_nickname: Option<i32>,
 }
 
+// Simplified RecurringRule with only essential fields
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecurringRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurring_type: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub until_type: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub until_date: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub until_count: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub customized_recurring_type: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub customized_recurring_step: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub customized_recurring_days: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LiveWatermark {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub watermark_opt: Option<i32>,
-}
-
+// Simplified LiveConfig with only essential fields
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiveConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub live_subject: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub live_summary: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_live_password: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub live_password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_live_im: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_live_replay: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub live_watermark: Option<LiveWatermark>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub live_addr: Option<String>, // Only in response
 }
@@ -173,33 +122,9 @@ pub struct CreateMeetingRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub meeting_type: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub recurring_rule: Option<RecurringRule>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_live: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub live_config: Option<LiveConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_doc_upload_permission: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub media_set_type: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_interpreter: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_enroll: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_host_key: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sync_to_wework: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub time_zone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_enterprise_intranet_only: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,23 +135,11 @@ pub struct MeetingInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub hosts: Option<Vec<User>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub participants: Option<Vec<User>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_non_registered: Option<Vec<String>>,
     pub start_time: String,
     pub end_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub join_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<MeetingSettings>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_live: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub live_config: Option<LiveConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
