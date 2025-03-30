@@ -298,12 +298,13 @@ impl TencentMeetingClient {
 
         // Parse the operators from the environment variable
         let operators = Self::parse_operators_from_env();
-        
+
         // Get the default operator ID (first one or "admin")
-        let default_operator_id = operators.first()
+        let default_operator_id = operators
+            .first()
             .map(|op| op.id.clone())
             .unwrap_or_else(|| "admin".to_string());
-            
+
         Self {
             client: Client::new(),
             app_id: env::var("TENCENT_MEETING_APP_ID")
@@ -319,14 +320,14 @@ impl TencentMeetingClient {
             default_operator_id,
         }
     }
-    
+
     /// Parse operators from environment variable
     /// Format: "name1:id1,name2:id2,name3:id3"
     fn parse_operators_from_env() -> Vec<Operator> {
         match env::var("TENCENT_MEETING_OPERATOR_ID") {
             Ok(value) => {
                 let mut operators = Vec::new();
-                
+
                 for pair in value.split(',') {
                     let parts: Vec<&str> = pair.trim().split(':').collect();
                     if parts.len() == 2 {
@@ -336,11 +337,11 @@ impl TencentMeetingClient {
                         });
                     }
                 }
-                
+
                 // Log the number of operators loaded
                 info!("Loaded {} operators from environment", operators.len());
                 operators
-            },
+            }
             Err(_) => {
                 info!("No operators defined in environment, using default");
                 vec![Operator {
@@ -358,17 +359,17 @@ impl TencentMeetingClient {
                 return operator.id.clone();
             }
         }
-        
+
         // If no match found, return the default operator ID
         info!("No operator found for name '{}', using default", name);
         self.default_operator_id.clone()
     }
-    
+
     /// Get the default operator ID configured for this client
     pub fn get_operator_id(&self) -> &str {
         &self.default_operator_id
     }
-    
+
     /// Get all available operators
     pub fn get_operators(&self) -> &[Operator] {
         &self.operators

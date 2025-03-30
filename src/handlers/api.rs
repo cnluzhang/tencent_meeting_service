@@ -15,8 +15,8 @@ use crate::models::form::FormSubmission;
 use crate::models::meeting::{MeetingResult, WebhookResponse};
 use crate::services::database::DatabaseService;
 use crate::services::time_slots::{
-    create_meeting_with_time_slot, create_merged_meeting, find_mergeable_groups, parse_time_slot,
-    get_room_id_for_form, get_operator_info,
+    create_meeting_with_time_slot, create_merged_meeting, find_mergeable_groups, get_operator_info,
+    get_room_id_for_form, parse_time_slot,
 };
 
 // AppState struct containing shared resources
@@ -25,8 +25,8 @@ pub struct AppState {
     pub user_field_name: String, // Used to identify the operator
     pub dept_field_name: String,
     pub database: Arc<DatabaseService>,
-    pub xa_room_id: String,     // Xi'an meeting room ID
-    pub cd_room_id: String,     // Chengdu meeting room ID
+    pub xa_room_id: String,          // Xi'an meeting room ID
+    pub cd_room_id: String,          // Chengdu meeting room ID
     pub skip_meeting_creation: bool, // Toggle to only store in CSV without creating meetings
     pub skip_room_booking: bool,     // Toggle to create meetings but not book rooms
 }
@@ -43,11 +43,7 @@ pub async fn list_meeting_rooms(
     );
 
     // Fetch meeting rooms from the Tencent Meeting API
-    match state
-        .client
-        .list_rooms(params.page, params.page_size)
-        .await
-    {
+    match state.client.list_rooms(params.page, params.page_size).await {
         Ok(response) => {
             info!(
                 "Successfully retrieved {} meeting rooms",
@@ -181,18 +177,31 @@ pub async fn handle_form_submission(
             Ok(cancelled_meetings) if !cancelled_meetings.is_empty() => {
                 info!(
                     "Found {} meetings to cancel with token: {}",
-                    cancelled_meetings.len(), form_submission.entry.token
+                    cancelled_meetings.len(),
+                    form_submission.entry.token
                 );
 
                 // Check if we're in simulation mode
-                if state.skip_meeting_creation || cancelled_meetings.iter().any(|(id, _)| id.starts_with("simulation-")) {
-                    let meeting_ids: Vec<String> = cancelled_meetings.iter().map(|(id, _)| id.clone()).collect();
-                    info!("Simulation mode: {} meetings marked as cancelled in database: {:?}", 
-                        cancelled_meetings.len(), meeting_ids);
+                if state.skip_meeting_creation
+                    || cancelled_meetings
+                        .iter()
+                        .any(|(id, _)| id.starts_with("simulation-"))
+                {
+                    let meeting_ids: Vec<String> = cancelled_meetings
+                        .iter()
+                        .map(|(id, _)| id.clone())
+                        .collect();
+                    info!(
+                        "Simulation mode: {} meetings marked as cancelled in database: {:?}",
+                        cancelled_meetings.len(),
+                        meeting_ids
+                    );
                     return Ok(Json(WebhookResponse {
                         success: true,
-                        message: format!("Simulation: {} meetings cancelled successfully", 
-                            cancelled_meetings.len()),
+                        message: format!(
+                            "Simulation: {} meetings cancelled successfully",
+                            cancelled_meetings.len()
+                        ),
                         meetings_count: 0,
                         meetings: Vec::new(),
                     }));
@@ -250,15 +259,21 @@ pub async fn handle_form_submission(
                             }
                         }
                         Err(err) => {
-                            error!("Failed to release room {} for meeting {}: {}", room_id, meeting_id, err);
+                            error!(
+                                "Failed to release room {} for meeting {}: {}",
+                                room_id, meeting_id, err
+                            );
                             failed_cancellations += 1;
                         }
                     }
                 }
-                
+
                 // Return summary of all cancellations
                 if failed_cancellations == 0 {
-                    info!("Successfully cancelled all {} meetings", successful_cancellations);
+                    info!(
+                        "Successfully cancelled all {} meetings",
+                        successful_cancellations
+                    );
                     return Ok(Json(WebhookResponse {
                         success: true,
                         message: format!(
@@ -269,7 +284,10 @@ pub async fn handle_form_submission(
                         meetings: Vec::new(),
                     }));
                 } else {
-                    warn!("Cancelled {} meetings, but {} failed", successful_cancellations, failed_cancellations);
+                    warn!(
+                        "Cancelled {} meetings, but {} failed",
+                        successful_cancellations, failed_cancellations
+                    );
                     return Ok(Json(WebhookResponse {
                         success: successful_cancellations > 0,
                         message: format!(
@@ -371,8 +389,9 @@ pub async fn handle_form_submission(
             // Store directly in database with merged time slot info
             let room_id = get_room_id(&state, &form_submission);
             // Get operator information
-            let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-            
+            let (operator_name, operator_id) =
+                get_operator_info(&state.client, &form_submission, &state.user_field_name);
+
             if let Err(e) = state.database.store_merged_meeting(
                 &form_submission,
                 "simulation-merged-meeting",
@@ -406,8 +425,12 @@ pub async fn handle_form_submission(
                         info!("Simulation mode: Storing form submission in database without creating a meeting");
                         let room_id = get_room_id(&state, &form_submission);
                         // Get operator information
-                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-                        
+                        let (operator_name, operator_id) = get_operator_info(
+                            &state.client,
+                            &form_submission,
+                            &state.user_field_name,
+                        );
+
                         if let Err(e) = state.database.store_meeting(
                             &form_submission,
                             "simulation-meeting-id",
@@ -425,11 +448,11 @@ pub async fn handle_form_submission(
                         if !state.skip_room_booking {
                             // Get the appropriate room ID based on the form name
                             let room_id = get_room_id_for_form(
-                                &form_submission.form_name, 
-                                &state.xa_room_id, 
-                                &state.cd_room_id
+                                &form_submission.form_name,
+                                &state.xa_room_id,
+                                &state.cd_room_id,
                             );
-                            
+
                             // Book meeting room
                             let book_request = BookRoomsRequest {
                                 operator_id: state.client.get_operator_id().to_string(),
@@ -460,8 +483,12 @@ pub async fn handle_form_submission(
                         // Store meeting info in database with room ID (whether or not room was booked)
                         let room_id = get_room_id(&state, &form_submission);
                         // Get operator information
-                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-                        
+                        let (operator_name, operator_id) = get_operator_info(
+                            &state.client,
+                            &form_submission,
+                            &state.user_field_name,
+                        );
+
                         if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             meeting_id,
@@ -523,8 +550,12 @@ pub async fn handle_form_submission(
                         // Store directly in database with merged time slot info
                         let room_id = get_room_id(&state, &form_submission);
                         // Get operator information
-                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-                        
+                        let (operator_name, operator_id) = get_operator_info(
+                            &state.client,
+                            &form_submission,
+                            &state.user_field_name,
+                        );
+
                         if let Err(e) = state.database.store_merged_meeting(
                             &form_submission,
                             &format!("simulation-merged-meeting-{}", i),
@@ -538,7 +569,6 @@ pub async fn handle_form_submission(
                         }
 
                         meeting_results.push(result);
-                        all_successful = all_successful && true;
                     } else {
                         // Normal flow - create the merged meeting
                         match create_merged_meeting(
@@ -559,11 +589,13 @@ pub async fn handle_form_submission(
                                     if !state.skip_room_booking {
                                         // Step 2: Book the meeting room
                                         // Get the appropriate room ID
-                                        
+
                                         let book_request = BookRoomsRequest {
                                             operator_id: state.client.get_operator_id().to_string(),
                                             operator_id_type: 1,
-                                            meeting_room_id_list: vec![form_specific_room_id.clone()],
+                                            meeting_room_id_list: vec![
+                                                form_specific_room_id.clone()
+                                            ],
                                             subject_visible: Some(true),
                                         };
 
@@ -590,10 +622,14 @@ pub async fn handle_form_submission(
                                     // Always store meeting in database with merged time slot info
                                     // Get the appropriate room ID
                                     let room_id = get_room_id(&state, &form_submission);
-                                    
+
                                     // Get operator information
-                                    let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-                                    
+                                    let (operator_name, operator_id) = get_operator_info(
+                                        &state.client,
+                                        &form_submission,
+                                        &state.user_field_name,
+                                    );
+
                                     if let Err(e) = state.database.store_merged_meeting(
                                         &form_submission,
                                         meeting_id,
@@ -643,8 +679,12 @@ pub async fn handle_form_submission(
                         // Store directly in database with specific time slot
                         let room_id = get_room_id(&state, &form_submission);
                         // Get operator information
-                        let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-                        
+                        let (operator_name, operator_id) = get_operator_info(
+                            &state.client,
+                            &form_submission,
+                            &state.user_field_name,
+                        );
+
                         if let Err(e) = state.database.store_meeting_with_time_slot(
                             &form_submission,
                             &format!("simulation-meeting-id-{}", i),
@@ -658,7 +698,6 @@ pub async fn handle_form_submission(
                         }
 
                         meeting_results.push(result);
-                        all_successful = all_successful && true;
                     } else {
                         // Normal flow - create the meeting
                         match create_meeting_with_time_slot(
@@ -679,11 +718,13 @@ pub async fn handle_form_submission(
                                     if !state.skip_room_booking {
                                         // Step 2: Book the meeting room
                                         // Get the appropriate room ID
-                                        
+
                                         let book_request = BookRoomsRequest {
                                             operator_id: state.client.get_operator_id().to_string(),
                                             operator_id_type: 1,
-                                            meeting_room_id_list: vec![form_specific_room_id.clone()],
+                                            meeting_room_id_list: vec![
+                                                form_specific_room_id.clone()
+                                            ],
                                             subject_visible: Some(true),
                                         };
 
@@ -709,10 +750,14 @@ pub async fn handle_form_submission(
 
                                     // Always store in database with specific time slot
                                     let room_id = get_room_id(&state, &form_submission);
-                                    
+
                                     // Get operator information
-                                    let (operator_name, operator_id) = get_operator_info(&state.client, &form_submission, &state.user_field_name);
-                                    
+                                    let (operator_name, operator_id) = get_operator_info(
+                                        &state.client,
+                                        &form_submission,
+                                        &state.user_field_name,
+                                    );
+
                                     if let Err(e) = state.database.store_meeting_with_time_slot(
                                         &form_submission,
                                         meeting_id,
@@ -786,6 +831,6 @@ fn get_room_id(state: &AppState, form_submission: &FormSubmission) -> String {
     get_room_id_for_form(
         &form_submission.form_name,
         &state.xa_room_id,
-        &state.cd_room_id
+        &state.cd_room_id,
     )
 }

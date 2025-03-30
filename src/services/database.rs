@@ -28,7 +28,7 @@ pub struct MeetingRecord {
     pub room_id: String,      // Room ID used for booking
     pub created_at: String,   // ISO format
     pub cancelled_at: String, // ISO format (empty if not cancelled)
-    
+
     // Operator information
     pub operator_name: String, // Name of the operator from form submission
     pub operator_id: String,   // ID of the operator used for API calls
@@ -86,11 +86,11 @@ impl DatabaseService {
     }
 
     /// Store a meeting record using a specific time slot
-    /// 
+    ///
     /// This function creates a database record for a single time slot meeting.
     /// It includes time-specific information from the provided TimeSlot,
     /// which ensures that each meeting has its correct scheduled time.
-    /// 
+    ///
     /// Used for individual (non-merged) meetings and distinguishes between
     /// multiple meetings with the same form token but different time slots.
     pub fn store_meeting_with_time_slot(
@@ -105,22 +105,23 @@ impl DatabaseService {
     ) -> Result<(), String> {
         // Use the specific time slot's label
         let scheduled_label = time_slot.scheduled_label.clone();
-            
+
         // Check if an identical meeting entry already exists (same token, status, and time)
-        let is_duplicate = self.find_all_meetings_by_token(&form.entry.token)?
+        let is_duplicate = self
+            .find_all_meetings_by_token(&form.entry.token)?
             .into_iter()
-            .any(|record| 
-                record.status == form.entry.reservation_status_fsf_field && 
-                record.scheduled_label == scheduled_label
-            );
-            
+            .any(|record| {
+                record.status == form.entry.reservation_status_fsf_field
+                    && record.scheduled_label == scheduled_label
+            });
+
         if is_duplicate {
             // Entry with same token, status, and time already exists
             info!("Meeting with token {} and status {} for time {} already exists, skipping insertion", 
                 form.entry.token, form.entry.reservation_status_fsf_field, scheduled_label);
             return Ok(());
         }
-        
+
         // Get current time in UTC
         let now = Utc::now();
 
@@ -132,7 +133,7 @@ impl DatabaseService {
             subject: form.entry.field_8.clone(),
             room_name: room_name.to_string(),
             scheduled_at: time_slot.start_time.to_rfc3339(),
-            scheduled_label: scheduled_label,
+            scheduled_label,
             status: form.entry.reservation_status_fsf_field.clone(),
             meeting_id: meeting_id.to_string(),
             room_id: room_id.to_string(),
@@ -141,10 +142,10 @@ impl DatabaseService {
             operator_name: operator_name.to_string(),
             operator_id: operator_id.to_string(),
         };
-        
+
         self.write_record(&record)
     }
-    
+
     // Store a meeting record (keep for backward compatibility)
     pub fn store_meeting(
         &self,
@@ -160,9 +161,17 @@ impl DatabaseService {
             // Create a TimeSlot from the form field
             let parsed_slot = parse_time_slot(first_slot)
                 .map_err(|e| format!("Failed to parse time slot: {}", e))?;
-                
+
             // Call the new method with the parsed slot
-            self.store_meeting_with_time_slot(form, meeting_id, room_name, room_id, &parsed_slot, operator_name, operator_id)
+            self.store_meeting_with_time_slot(
+                form,
+                meeting_id,
+                room_name,
+                room_id,
+                &parsed_slot,
+                operator_name,
+                operator_id,
+            )
         } else {
             // Fallback to default behavior if no time slots available
             // Get current time in UTC
@@ -185,19 +194,19 @@ impl DatabaseService {
                 operator_name: operator_name.to_string(),
                 operator_id: operator_id.to_string(),
             };
-            
+
             self.write_record(&record)
         }
     }
-    
+
     /// Store a merged meeting record in the database with custom time slot info
-    /// 
+    ///
     /// This function creates a database record for a merged meeting composed of multiple
     /// contiguous time slots. It combines multiple time slots into a single meeting with:
     /// - The start time of the first slot
     /// - A combined scheduled label showing the full time range (e.g., "09:00-11:00")
-    /// 
-    /// This is used when multiple adjacent time slots for the same room can be 
+    ///
+    /// This is used when multiple adjacent time slots for the same room can be
     /// merged into a single, longer meeting.
     pub fn store_merged_meeting(
         &self,
@@ -212,36 +221,54 @@ impl DatabaseService {
         // Sort time slots to ensure correct ordering
         let mut sorted_slots = time_slots.to_vec();
         sorted_slots.sort_by_key(|slot| slot.start_time);
-        
+
         // Get the earliest start time and latest end time
         let first_slot = sorted_slots.first().unwrap();
         let last_slot = sorted_slots.last().unwrap();
-        
+
         // Create combined scheduled_label (e.g., "2025-04-01 09:00-11:00")
-        let first_time = first_slot.scheduled_label.split(' ').nth(1).unwrap_or("").split('-').next().unwrap_or("");
-        let last_time = last_slot.scheduled_label.split(' ').nth(1).unwrap_or("").split('-').nth(1).unwrap_or("");
+        let first_time = first_slot
+            .scheduled_label
+            .split(' ')
+            .nth(1)
+            .unwrap_or("")
+            .split('-')
+            .next()
+            .unwrap_or("");
+        let last_time = last_slot
+            .scheduled_label
+            .split(' ')
+            .nth(1)
+            .unwrap_or("")
+            .split('-')
+            .nth(1)
+            .unwrap_or("");
         let date = first_slot.scheduled_label.split(' ').next().unwrap_or("");
         let combined_label = format!("{} {}-{}", date, first_time, last_time);
-        
+
         // Check if an identical meeting entry already exists (same token, status, and time)
-        let is_duplicate = self.find_all_meetings_by_token(&form.entry.token)?
+        let is_duplicate = self
+            .find_all_meetings_by_token(&form.entry.token)?
             .into_iter()
-            .any(|record| 
-                record.status == form.entry.reservation_status_fsf_field && 
-                record.scheduled_label == combined_label
-            );
-            
+            .any(|record| {
+                record.status == form.entry.reservation_status_fsf_field
+                    && record.scheduled_label == combined_label
+            });
+
         if is_duplicate {
             // Entry with same token, status, and time already exists
             info!("Meeting with token {} and status {} for time {} already exists, skipping insertion", 
                 form.entry.token, form.entry.reservation_status_fsf_field, combined_label);
             return Ok(());
         }
-        
+
         // Get current time in UTC
         let now = Utc::now();
-        
-        info!("Creating merged meeting record with label: {}", combined_label);
+
+        info!(
+            "Creating merged meeting record with label: {}",
+            combined_label
+        );
 
         // Create a new record
         let record = MeetingRecord {
@@ -265,11 +292,11 @@ impl DatabaseService {
     }
 
     /// Update meeting status to cancelled for all meetings with the given token
-    /// 
+    ///
     /// This function finds and cancels all meetings that match the provided token.
     /// It supports canceling multiple meetings at once (like when a user books
     /// multiple time slots with the same form submission).
-    /// 
+    ///
     /// Returns a Vec of (meeting_id, room_id) pairs for all cancelled meetings,
     /// which allows the caller to handle multiple cancellations appropriately.
     pub fn cancel_meeting(&self, entry_token: &str) -> Result<Vec<(String, String)>, String> {
@@ -298,7 +325,8 @@ impl DatabaseService {
 
             // Check if this is the record to update - not yet cancelled
             let is_reserved = record.get(7) == Some("Reserved") || record.get(7) == Some("已预约");
-            let is_cancelled = record.get(7) == Some("Cancelled") || record.get(7) == Some("已取消");
+            let is_cancelled =
+                record.get(7) == Some("Cancelled") || record.get(7) == Some("已取消");
             if record.get(0) == Some(entry_token) && is_reserved && !is_cancelled {
                 // Get meeting_id and room_id for cancellation
                 if let (Some(meeting_id), Some(room_id)) = (record.get(8), record.get(9)) {
@@ -313,12 +341,12 @@ impl DatabaseService {
                     updated_vec[11] = now.clone(); // Update cancelled_at
 
                     let updated = StringRecord::from(updated_vec);
-                    
+
                     info!(
                         "Marked meeting {} as cancelled for token {}",
                         meeting_id, entry_token
                     );
-                    
+
                     records.push(updated);
                 } else {
                     // Record is missing meeting_id or room_id, push it unchanged
@@ -365,7 +393,7 @@ impl DatabaseService {
             cancelled_meetings.len(),
             entry_token
         );
-            
+
         // Return all cancelled meeting IDs and room IDs
         Ok(cancelled_meetings)
     }
@@ -390,7 +418,8 @@ impl DatabaseService {
             let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
 
             // For finding a meeting, we check if it's either reserved or not cancelled
-            let is_cancelled = record.get(7) == Some("Cancelled") || record.get(7) == Some("已取消");
+            let is_cancelled =
+                record.get(7) == Some("Cancelled") || record.get(7) == Some("已取消");
             if record.get(0) == Some(entry_token) && !is_cancelled {
                 // Convert to MeetingRecord
                 return Ok(Some(self.string_record_to_meeting_record(&record)?));
@@ -400,7 +429,7 @@ impl DatabaseService {
         // No matching record found
         Ok(None)
     }
-    
+
     // Find a meeting by entry token and specific status
     pub fn find_meeting_by_token_and_status(
         &self,
@@ -416,7 +445,7 @@ impl DatabaseService {
         if !Path::new(&self.csv_path).exists() {
             return Ok(None);
         }
-        
+
         let file = match File::open(&self.csv_path) {
             Ok(file) => file,
             Err(e) => {
@@ -442,9 +471,9 @@ impl DatabaseService {
         // No matching record found
         Ok(None)
     }
-    
+
     /// Find all meetings with a specific token
-    /// 
+    ///
     /// Unlike find_meeting_by_token which returns only one meeting,
     /// this function returns all meetings that match the given token.
     /// This is useful for operations that need to process multiple
@@ -463,7 +492,7 @@ impl DatabaseService {
         if !Path::new(&self.csv_path).exists() {
             return Ok(Vec::new());
         }
-        
+
         let file = match File::open(&self.csv_path) {
             Ok(file) => file,
             Err(e) => {
@@ -489,7 +518,6 @@ impl DatabaseService {
 
         Ok(meetings)
     }
-
 
     // Convert StringRecord to MeetingRecord
     fn string_record_to_meeting_record(
@@ -517,7 +545,7 @@ impl DatabaseService {
                     operator_id: "admin".to_string(),
                 });
             }
-            
+
             return Err(format!("Invalid record length: {}", record.len()));
         }
 
@@ -574,8 +602,9 @@ impl DatabaseService {
 pub fn create_database_service() -> Arc<DatabaseService> {
     // Default path with environment variable override
     let default_path = "/app/data/meetings.csv";
-    let csv_path = std::env::var("MEETING_DATABASE_PATH").unwrap_or_else(|_| default_path.to_string());
-    
+    let csv_path =
+        std::env::var("MEETING_DATABASE_PATH").unwrap_or_else(|_| default_path.to_string());
+
     // Create the data directory if it doesn't exist and we're using the default path
     if csv_path == default_path {
         let dir = std::path::Path::new(default_path).parent().unwrap();

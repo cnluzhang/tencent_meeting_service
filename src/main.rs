@@ -33,7 +33,9 @@ async fn handle_error(error: BoxError) -> (StatusCode, String) {
 #[tokio::main]
 async fn main() {
     // Initialize tracing for logging
-    tracing_subscriber::fmt().with_max_level(Level::DEBUG).init();
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
 
     // Initialize the Tencent Meeting API client
     let client = TencentMeetingClient::new();
@@ -46,11 +48,11 @@ async fn main() {
         env::var("FORM_DEPT_FIELD_NAME").expect("FORM_DEPT_FIELD_NAME must be set in environment");
 
     // Load city-specific room IDs
-    let xa_room_id = env::var("XA_MEETING_ROOM_ID")
-        .expect("XA_MEETING_ROOM_ID must be set in environment");
-    
-    let cd_room_id = env::var("CD_MEETING_ROOM_ID")
-        .expect("CD_MEETING_ROOM_ID must be set in environment");
+    let xa_room_id =
+        env::var("XA_MEETING_ROOM_ID").expect("XA_MEETING_ROOM_ID must be set in environment");
+
+    let cd_room_id =
+        env::var("CD_MEETING_ROOM_ID").expect("CD_MEETING_ROOM_ID must be set in environment");
 
     info!("Using form field mappings and city-specific room IDs from environment variables");
 

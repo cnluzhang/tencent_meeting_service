@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use tracing::{error, info, debug, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::client::{CreateMeetingRequest, MeetingSettings, TencentMeetingClient, User};
 use crate::models::form::FormField1Item;
@@ -10,57 +10,79 @@ use crate::models::meeting::{MeetingResult, TimeSlot};
 
 // Helper function to determine location based on form name
 fn get_location_for_form(form_name: &str, room_name: &str) -> String {
-    debug!("Getting location for form: {}, room: {}", form_name, room_name);
-    
+    debug!(
+        "Getting location for form: {}, room: {}",
+        form_name, room_name
+    );
+
     match form_name {
-        name if name == "西安会议室预约" => "西安-大会议室".to_string(),
-        name if name == "成都会议室预约" => "成都-天府广场".to_string(),
-        _ => format!("{} (Unknown Location)", room_name) // Default fallback
+        "西安会议室预约" => "西安-大会议室".to_string(),
+        "成都会议室预约" => "成都-天府广场".to_string(),
+        _ => format!("{} (Unknown Location)", room_name), // Default fallback
     }
 }
 
 // Helper function to determine which room ID to use based on form name
 pub fn get_room_id_for_form(form_name: &str, xa_room_id: &str, cd_room_id: &str) -> String {
     debug!("Getting room ID for form: {}", form_name);
-    
+
     match form_name {
-        name if name == "西安会议室预约" => xa_room_id.to_string(),
-        name if name == "成都会议室预约" => cd_room_id.to_string(),
+        "西安会议室预约" => xa_room_id.to_string(),
+        "成都会议室预约" => cd_room_id.to_string(),
         _ => {
-            warn!("Unknown form name: {}, using Xi'an room ID as default", form_name);
+            warn!(
+                "Unknown form name: {}, using Xi'an room ID as default",
+                form_name
+            );
             xa_room_id.to_string() // Default to Xi'an room ID
         }
     }
 }
 
 // Helper function to get operator name and ID from form submission
-pub fn get_operator_info(client: &TencentMeetingClient, form: &FormSubmission, user_field_name: &str) -> (String, String) {
+pub fn get_operator_info(
+    client: &TencentMeetingClient,
+    form: &FormSubmission,
+    user_field_name: &str,
+) -> (String, String) {
     // Extract the user name from the form using the configured field name
     let operator_name = match form.entry.extra_fields.get(user_field_name) {
         Some(value) => {
             // Extract the string value
             if let Some(name_str) = value.as_str() {
-                debug!("Found operator name '{}' in field '{}'", name_str, user_field_name);
+                debug!(
+                    "Found operator name '{}' in field '{}'",
+                    name_str, user_field_name
+                );
                 name_str.to_string()
             } else {
                 // Convert other types to string if possible
                 let name = value.to_string().trim_matches('"').to_string();
-                debug!("Converted operator name '{}' from field '{}'", name, user_field_name);
+                debug!(
+                    "Converted operator name '{}' from field '{}'",
+                    name, user_field_name
+                );
                 name
             }
-        },
+        }
         None => {
             // If field is not found, use a default value
-            warn!("User field '{}' not found in form submission, using default", user_field_name);
+            warn!(
+                "User field '{}' not found in form submission, using default",
+                user_field_name
+            );
             "default".to_string()
         }
     };
-    
+
     // Get the corresponding operator ID
     let operator_id = client.get_operator_id_by_name(&operator_name);
-    
-    info!("Resolved operator name '{}' to ID '{}'", operator_name, operator_id);
-    
+
+    info!(
+        "Resolved operator name '{}' to ID '{}'",
+        operator_name, operator_id
+    );
+
     (operator_name, operator_id)
 }
 
@@ -118,7 +140,6 @@ pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String>
         api_code: reservation.api_code.clone(),
     })
 }
-
 
 // Attempt to find mergeable groups in time slots
 pub fn find_mergeable_groups(slots: &[TimeSlot]) -> Vec<Vec<TimeSlot>> {
@@ -179,7 +200,7 @@ pub async fn create_meeting_with_time_slot(
 ) -> Result<MeetingResult, StatusCode> {
     // Get operator information based on the form submission
     let (operator_name, operator_id) = get_operator_info(client, form_submission, user_field_name);
-    
+
     // Create meeting request with the specific operator ID from form data
     let meeting_request = CreateMeetingRequest {
         userid: operator_id.clone(),
@@ -214,7 +235,10 @@ pub async fn create_meeting_with_time_slot(
             play_ivr_on_leave: None,
             play_ivr_on_join: None,
         }),
-        location: Some(get_location_for_form(&form_submission.form_name, time_slot.item_name.as_str())),
+        location: Some(get_location_for_form(
+            &form_submission.form_name,
+            time_slot.item_name.as_str(),
+        )),
         meeting_type: None,
         recurring_rule: None,
         enable_live: None,
@@ -297,7 +321,7 @@ pub async fn create_merged_meeting(
         .iter()
         .map(|slot| slot.scheduled_label.clone())
         .collect();
-        
+
     // Get operator information based on the form submission
     let (operator_name, operator_id) = get_operator_info(client, form_submission, user_field_name);
 
@@ -345,7 +369,10 @@ pub async fn create_merged_meeting(
             play_ivr_on_leave: None,
             play_ivr_on_join: None,
         }),
-        location: Some(get_location_for_form(&form_submission.form_name, room_name.as_str())),
+        location: Some(get_location_for_form(
+            &form_submission.form_name,
+            room_name.as_str(),
+        )),
         meeting_type: None,
         recurring_rule: None,
         enable_live: None,
