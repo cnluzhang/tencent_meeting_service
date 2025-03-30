@@ -11,6 +11,7 @@ A web service that provides a bridge between form services and Tencent Meeting A
 - Production and development environments
 - Configurable via environment variables
 - Health check endpoint for monitoring
+- Graceful shutdown with proper signal handling
 - Comprehensive test suite with 30+ automated tests
 
 ## Project Structure
@@ -348,6 +349,18 @@ The service includes:
 - Timeout handling for long-running requests
 - Structured logging
 - CORS support for frontend integration
+
+## Graceful Shutdown
+
+The service implements graceful shutdown to ensure clean termination:
+
+- Captures standard termination signals:
+  - SIGINT (Ctrl+C) on all platforms
+  - SIGTERM on Unix/Linux platforms (for Docker/Kubernetes orchestration)
+- Allows in-progress requests to complete
+- Logs shutdown events for monitoring
+- Prevents connection interruptions during deployments
+- Enables safer container orchestration
 
 ## Contributing
 

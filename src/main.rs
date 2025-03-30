@@ -117,7 +117,41 @@ async fn main() {
         .await
         .expect("Failed to bind to address");
 
+    // Set up signal handler for graceful shutdown
+    let shutdown = async {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("Failed to install SIGTERM handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {
+                info!("Received interrupt signal, starting graceful shutdown");
+            },
+            _ = terminate => {
+                info!("Received terminate signal, starting graceful shutdown");
+            },
+        }
+    };
+
+    // Start server with graceful shutdown
+    info!("Server is ready to accept connections");
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
         .await
         .expect("Failed to start server");
+
+    info!("Server has been gracefully shut down");
 }

@@ -130,6 +130,11 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 - `SKIP_ROOM_BOOKING=true` - Creates meetings but skips room booking API calls
 - Both toggles can be used in combination for different testing scenarios
 
+## Graceful Shutdown
+- Service includes graceful shutdown support for SIGTERM and SIGINT (Ctrl+C) signals
+- Active connections are allowed to complete before server termination
+- Shutdown process is logged for monitoring and debugging purposes
+
 ## Data Storage
 - Meeting data is stored in a persistent CSV file in a Docker volume
 - Default location: `/app/data/meetings.csv`
