@@ -539,8 +539,8 @@ pub fn create_database_service() -> Arc<DatabaseService> {
     if csv_path == default_path {
         let dir = std::path::Path::new(default_path).parent().unwrap();
         if let Err(e) = std::fs::create_dir_all(dir) {
-            tracing::warn!("Failed to create data directory: {}, falling back to root dir", e);
-            return Arc::new(DatabaseService::new("meetings.csv"));
+            tracing::error!("Failed to create data directory: {}", e);
+            panic!("Failed to create data directory: {}", e);
         }
     }
 

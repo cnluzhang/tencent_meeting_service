@@ -133,19 +133,71 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 
 ## Code Organization
 
+### Project File Structure
+```
+tencent_meeting_service/
+├── Cargo.toml           # Project dependencies
+├── Dockerfile           # Multi-stage Docker configuration
+├── Dockerfile.test      # Test-specific Docker configuration
+├── docker-compose.yml   # Docker Compose setup
+├── docker-compose.test.yml # Test environment Docker Compose setup
+├── README.md            # Project documentation
+├── CLAUDE.md            # Development guidelines
+├── data/
+│   └── meetings.csv     # CSV database for meeting storage
+└── src/
+    ├── main.rs          # Application entry point
+    ├── lib.rs           # Library exports
+    ├── auth.rs          # Authentication utilities for Tencent Meeting API
+    ├── client.rs        # Tencent Meeting API client
+    ├── client_mock.rs   # Mock client for testing
+    ├── client_test.rs   # Tests for the client implementation
+    ├── routes.rs        # API routes configuration
+    ├── tests.rs         # General test utilities
+    ├── integration_tests.rs # End-to-end integration tests
+    ├── handlers/        # API endpoint handlers
+    │   ├── api.rs       # Main API endpoints
+    │   ├── api_test.rs  # Tests for API endpoints
+    │   ├── mod.rs       # Module exports
+    │   └── test.rs      # Test endpoints
+    ├── models/          # Data structures and types
+    │   ├── common.rs    # Shared types
+    │   ├── form.rs      # Form-related structures
+    │   ├── meeting.rs   # Meeting-related structures
+    │   └── mod.rs       # Module exports
+    ├── routes/          # Route organization 
+    └── services/        # Business logic
+        ├── database.rs  # CSV database operations
+        ├── database_test.rs # Tests for database operations
+        ├── mod.rs       # Module exports
+        ├── time_slots.rs # Time slot processing
+        └── time_slots_test.rs # Tests for time slot operations
+```
+
 ### Module Structure
 - **handlers/**: API endpoint handlers
   - **api.rs**: Main API endpoints (meeting rooms, meeting creation/cancellation, form webhook)
+  - **api_test.rs**: Tests for API endpoints
   - **test.rs**: Test and health check endpoints
+  - **mod.rs**: Module exports
 - **models/**: Data structures
   - **common.rs**: Shared types like PaginationParams
   - **form.rs**: Form submission data structures
   - **meeting.rs**: Meeting-related data structures
+  - **mod.rs**: Module exports
 - **services/**: Business logic
+  - **database.rs**: CSV database operations for storing meetings
+  - **database_test.rs**: Tests for database operations
   - **time_slots.rs**: Time slot processing, merging, and meeting creation
+  - **time_slots_test.rs**: Tests for time slot operations
+  - **mod.rs**: Module exports
 - **routes.rs**: Centralizes all API routes
-- **client.rs**: Tencent Meeting API client
-- **auth.rs**: Authentication utilities
+- **client.rs**: Tencent Meeting API client implementation
+- **client_mock.rs**: Mock client for testing without real API calls
+- **client_test.rs**: Tests for the client implementation
+- **auth.rs**: Authentication utilities for Tencent Meeting API
+- **tests.rs**: General test utilities
+- **integration_tests.rs**: End-to-end integration tests
 
 ### Code Style Guidelines
 - **Imports**: Group standard library, external crates, then local modules

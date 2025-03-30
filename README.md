@@ -17,28 +17,41 @@ A web service that provides a bridge between form services and Tencent Meeting A
 ```
 tencent_meeting_service/
 ├── Cargo.toml           # Project dependencies
-├── .env                 # Environment configuration
 ├── Dockerfile           # Multi-stage Docker configuration
+├── Dockerfile.test      # Test-specific Docker configuration
 ├── docker-compose.yml   # Docker Compose setup
+├── docker-compose.test.yml # Test environment Docker Compose setup
+├── README.md            # Project documentation
 ├── CLAUDE.md            # Development guidelines
+├── data/
+│   └── meetings.csv     # CSV database for meeting storage
 └── src/
     ├── main.rs          # Application entry point
     ├── lib.rs           # Library exports
-    ├── routes.rs        # API routes configuration
     ├── auth.rs          # Authentication utilities for Tencent Meeting API
     ├── client.rs        # Tencent Meeting API client
+    ├── client_mock.rs   # Mock client for testing
+    ├── client_test.rs   # Tests for the client implementation
+    ├── routes.rs        # API routes configuration
+    ├── tests.rs         # General test utilities
+    ├── integration_tests.rs # End-to-end integration tests
     ├── handlers/        # API endpoint handlers
     │   ├── api.rs       # Main API endpoints
-    │   ├── test.rs      # Test endpoints
-    │   └── mod.rs       # Module exports
+    │   ├── api_test.rs  # Tests for API endpoints
+    │   ├── mod.rs       # Module exports
+    │   └── test.rs      # Test endpoints
     ├── models/          # Data structures and types
     │   ├── common.rs    # Shared types
     │   ├── form.rs      # Form-related structures
     │   ├── meeting.rs   # Meeting-related structures
     │   └── mod.rs       # Module exports
+    ├── routes/          # Route organization 
     └── services/        # Business logic
+        ├── database.rs  # CSV database operations
+        ├── database_test.rs # Tests for database operations
+        ├── mod.rs       # Module exports
         ├── time_slots.rs # Time slot processing
-        └── mod.rs       # Module exports
+        └── time_slots_test.rs # Tests for time slot operations
 ```
 
 ## API Endpoints
