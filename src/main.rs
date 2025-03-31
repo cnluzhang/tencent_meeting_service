@@ -9,7 +9,7 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
-use tracing::{error, info, warn, Level};
+use tracing::{info, Level};
 
 #[cfg(feature = "sentry")]
 use sentry;
@@ -20,13 +20,10 @@ use tencent_meeting_service::{
 
 // Error handler
 async fn handle_error(error: BoxError) -> (StatusCode, String) {
-    // Log the error
-    let error_message = error.to_string();
-    
     // Capture error to Sentry if enabled
     #[cfg(feature = "sentry")]
     {
-        sentry::capture_message(&error_message, sentry::Level::Error);
+        sentry::capture_message(&error.to_string(), sentry::Level::Error);
     }
     
     if error.is::<tokio::time::error::Elapsed>() {
@@ -64,7 +61,7 @@ async fn main() {
         ));
         Some(guard)
     } else {
-        warn!("Sentry feature enabled but SENTRY_DSN not set - error monitoring disabled");
+        info!("Sentry feature enabled but SENTRY_DSN not set - error monitoring disabled");
         None
     };
 

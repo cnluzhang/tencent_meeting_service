@@ -90,11 +90,23 @@ pub fn get_operator_info(
 pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String> {
     // Parse the scheduled time
     let scheduled_at_str = &reservation.scheduled_at;
-    let meeting_start_time = match DateTime::parse_from_rfc3339(scheduled_at_str) {
+    let parsed_start_time = match DateTime::parse_from_rfc3339(scheduled_at_str) {
         Ok(dt) => dt.with_timezone(&Utc),
         Err(e) => {
             return Err(format!("Failed to parse scheduled_at time: {}", e));
         }
+    };
+    
+    // Check if the scheduled time is in the past, if so use current time + 2 minutes
+    let now = Utc::now();
+    let meeting_start_time = if parsed_start_time < now {
+        debug!(
+            "Scheduled time {} is in the past, using current time + 2 minutes instead",
+            parsed_start_time
+        );
+        now + chrono::Duration::minutes(2)
+    } else {
+        parsed_start_time
     };
 
     // Parse the scheduled label to determine meeting duration
@@ -109,25 +121,32 @@ pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String>
             let start_time_str = time_parts[0];
             let end_time_str = time_parts[1];
 
-            // Parse hour difference
-            if let (Some(start_hour), Some(end_hour)) = (
-                start_time_str
-                    .split(':')
-                    .next()
-                    .and_then(|h| h.parse::<i64>().ok()),
-                end_time_str
-                    .split(':')
-                    .next()
-                    .and_then(|h| h.parse::<i64>().ok()),
-            ) {
-                let hours_diff = if end_hour > start_hour {
-                    end_hour - start_hour
-                } else {
-                    24 + end_hour - start_hour // Handle overnight meetings
-                };
-
-                meeting_end_time = meeting_start_time + chrono::Duration::hours(hours_diff);
-            }
+            // Parse full time including both hours and minutes
+            let parse_time = |time_str: &str| {
+                let parts: Vec<&str> = time_str.split(':').collect();
+                let hour = parts.get(0).and_then(|h| h.parse::<i64>().ok()).unwrap_or(0);
+                let minute = parts.get(1).and_then(|m| m.parse::<i64>().ok()).unwrap_or(0);
+                (hour, minute)
+            };
+            
+            let (start_hour, start_min) = parse_time(start_time_str);
+            let (end_hour, end_min) = parse_time(end_time_str);
+            
+            // Calculate total minutes
+            let start_total_mins = start_hour * 60 + start_min;
+            let end_total_mins = end_hour * 60 + end_min;
+            
+            let mins_diff = if end_total_mins >= start_total_mins {
+                end_total_mins - start_total_mins
+            } else {
+                // Handle overnight meetings
+                (24 * 60) + end_total_mins - start_total_mins
+            };
+            
+            debug!("Time range {}-{} calculated as {} minutes difference", 
+                   start_time_str, end_time_str, mins_diff);
+                   
+            meeting_end_time = meeting_start_time + chrono::Duration::minutes(mins_diff);
         }
     }
 

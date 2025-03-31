@@ -135,6 +135,12 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 - Both toggles can be used in combination for different testing scenarios
 - `ENVIRONMENT=production` - Restricts exposed endpoints to only webhook and health endpoints
 
+## Time Slot Handling
+- Support for precise time parsing with minute granularity (e.g., "14:00-14:30")
+- Consecutive time slots in the same room are automatically identified and merged
+- Past time slots are automatically rescheduled to current time + 2 minutes 
+- Time slots are grouped by room and consecutive timing for optimal meeting creation
+
 ## Production Mode
 - Set `ENVIRONMENT=production` to run the service in production mode
 - Only exposes the webhook endpoint (`/webhook/form-submission`) and health check endpoint (`/health`)

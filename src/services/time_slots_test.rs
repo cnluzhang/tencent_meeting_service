@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod time_slots_tests {
     use chrono::{DateTime, TimeZone, Utc};
+    use std::thread;
+    use std::time::Duration as StdDuration;
     
     use crate::services::time_slots::{parse_time_slot, find_mergeable_groups};
     use crate::models::form::FormField1Item;
@@ -245,5 +247,108 @@ mod time_slots_tests {
         
         assert_eq!(result[2].len(), 1);
         assert_eq!(result[2][0].item_name, "Room B");
+    }
+    
+    #[test]
+    fn test_parse_time_slot_with_minutes() {
+        // Test time slot with 30-minute precision
+        let item = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: "2025-04-01 14:00-14:30".to_string(), // 30 minutes
+            number: 1,
+            scheduled_at: "2025-04-01T06:00:00.000Z".to_string(),
+            api_code: "CODE1".to_string(),
+        };
+        
+        let result = parse_time_slot(&item);
+        assert!(result.is_ok());
+        
+        let time_slot = result.unwrap();
+        
+        // Check that duration is 30 minutes
+        let duration = time_slot.end_time - time_slot.start_time;
+        assert_eq!(duration.num_minutes(), 30);
+        
+        // Test another 30-minute slot
+        let item = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: "2025-04-01 14:30-15:00".to_string(), // 30 minutes
+            number: 2,
+            scheduled_at: "2025-04-01T06:30:00.000Z".to_string(),
+            api_code: "CODE2".to_string(),
+        };
+        
+        let result = parse_time_slot(&item);
+        assert!(result.is_ok());
+        
+        let time_slot = result.unwrap();
+        
+        // Check that duration is 30 minutes
+        let duration = time_slot.end_time - time_slot.start_time;
+        assert_eq!(duration.num_minutes(), 30);
+    }
+    
+    #[test]
+    fn test_consecutive_30min_slots_are_mergeable() {
+        // Create two consecutive 30-minute slots in the same room
+        let slot1 = TimeSlot {
+            item_name: "Room A".to_string(),
+            scheduled_label: "2025-04-01 14:00-14:30".to_string(),
+            number: 1,
+            start_time: Utc.with_ymd_and_hms(2025, 4, 1, 14, 0, 0).unwrap(),
+            end_time: Utc.with_ymd_and_hms(2025, 4, 1, 14, 30, 0).unwrap(),
+            api_code: "CODE1".to_string(),
+        };
+        
+        let slot2 = TimeSlot {
+            item_name: "Room A".to_string(),
+            scheduled_label: "2025-04-01 14:30-15:00".to_string(),
+            number: 2,
+            start_time: Utc.with_ymd_and_hms(2025, 4, 1, 14, 30, 0).unwrap(),
+            end_time: Utc.with_ymd_and_hms(2025, 4, 1, 15, 0, 0).unwrap(),
+            api_code: "CODE2".to_string(),
+        };
+        
+        let slots = vec![slot1, slot2];
+        let result = find_mergeable_groups(&slots);
+        
+        // Should have one group with two slots (they're mergeable)
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].len(), 2);
+        
+        // Verify the time slots are in the right order
+        assert_eq!(result[0][0].scheduled_label, "2025-04-01 14:00-14:30");
+        assert_eq!(result[0][1].scheduled_label, "2025-04-01 14:30-15:00");
+    }
+    
+    #[test]
+    fn test_past_time_adjustment() {
+        // Create a time slot with a past time
+        let past_time = Utc::now() - chrono::Duration::hours(1); // 1 hour in the past
+        let past_rfc3339 = past_time.to_rfc3339();
+        
+        let item = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: "2025-04-01 09:00-10:00".to_string(),
+            number: 1,
+            scheduled_at: past_rfc3339,
+            api_code: "CODE1".to_string(),
+        };
+        
+        let result = parse_time_slot(&item);
+        assert!(result.is_ok());
+        
+        let time_slot = result.unwrap();
+        let now = Utc::now();
+        
+        // Check that start time is adjusted to now + 2 minutes
+        assert!(time_slot.start_time > now);
+        let diff = (time_slot.start_time - now).num_seconds();
+        // Allow for a small margin of error in the test due to execution time
+        assert!(diff >= 115 && diff <= 125); // ~120 seconds (2 minutes)
+        
+        // Duration should still be 1 hour from the adjusted start time
+        let duration = time_slot.end_time - time_slot.start_time;
+        assert_eq!(duration.num_hours(), 1);
     }
 }
