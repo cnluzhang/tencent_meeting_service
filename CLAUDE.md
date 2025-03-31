@@ -138,7 +138,10 @@ MEETING_DATABASE_PATH=/app/data/meetings.csv  # Path to CSV database file
 ## Time Slot Handling
 - Support for precise time parsing with minute granularity (e.g., "14:00-14:30")
 - Consecutive time slots in the same room are automatically identified and merged
-- Past time slots are automatically rescheduled to current time + 2 minutes 
+- Past time slots are automatically rescheduled as follows:
+  - Start time: If in the past, adjusted to current time + 2 minutes
+  - End time: Original end time is preserved if it's in the future, otherwise adjusted to start time + 5 minutes minimum
+- This preserves the continuity of consecutive time slots even when some are in the past
 - Time slots are grouped by room and consecutive timing for optimal meeting creation
 
 ## Production Mode

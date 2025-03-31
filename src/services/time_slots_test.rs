@@ -323,13 +323,22 @@ mod time_slots_tests {
     
     #[test]
     fn test_past_time_adjustment() {
-        // Create a time slot with a past time
-        let past_time = Utc::now() - chrono::Duration::hours(1); // 1 hour in the past
+        // Create a time slot with a past time and future end time
+        let now = Utc::now();
+        let past_time = now - chrono::Duration::hours(1); // 1 hour in the past
+        let future_time = now + chrono::Duration::hours(1); // 1 hour in the future
+        
+        // Create a time string that would normally span 2 hours
         let past_rfc3339 = past_time.to_rfc3339();
+        let time_label = format!(
+            "{}-{}", 
+            past_time.format("%Y-%m-%d %H:%M"),
+            future_time.format("%H:%M")
+        );
         
         let item = FormField1Item {
             item_name: "Test Room".to_string(),
-            scheduled_label: "2025-04-01 09:00-10:00".to_string(),
+            scheduled_label: time_label,
             number: 1,
             scheduled_at: past_rfc3339,
             api_code: "CODE1".to_string(),
@@ -339,16 +348,112 @@ mod time_slots_tests {
         assert!(result.is_ok());
         
         let time_slot = result.unwrap();
-        let now = Utc::now();
         
         // Check that start time is adjusted to now + 2 minutes
         assert!(time_slot.start_time > now);
-        let diff = (time_slot.start_time - now).num_seconds();
+        let start_diff = (time_slot.start_time - now).num_seconds();
         // Allow for a small margin of error in the test due to execution time
-        assert!(diff >= 115 && diff <= 125); // ~120 seconds (2 minutes)
+        assert!(start_diff >= 115 && start_diff <= 125); // ~120 seconds (2 minutes)
         
-        // Duration should still be 1 hour from the adjusted start time
+        // Check that end time is preserved from the original time
+        // It should be approximately the same as our future_time
+        let end_diff = (time_slot.end_time - future_time).num_seconds().abs();
+        assert!(end_diff < 5); // Allow small difference due to string formatting/parsing
+        
+        // Duration should be shorter than the original 2 hours
+        // since start time was pushed forward but end time stayed the same
         let duration = time_slot.end_time - time_slot.start_time;
-        assert_eq!(duration.num_hours(), 1);
+        assert!(duration.num_minutes() < 120);
+        assert!(duration.num_minutes() > 50); // Approximately 60 minutes
+    }
+    
+    #[test]
+    fn test_past_time_with_past_end_time() {
+        // Test when both start and end times are in the past
+        let now = Utc::now();
+        let past_start = now - chrono::Duration::minutes(30); // 30 minutes in the past
+        let past_end = now - chrono::Duration::minutes(15); // 15 minutes in the past
+        
+        // Create a time string for a past time slot
+        let past_rfc3339 = past_start.to_rfc3339();
+        let time_label = format!(
+            "{}-{}", 
+            past_start.format("%Y-%m-%d %H:%M"),
+            past_end.format("%H:%M")
+        );
+        
+        let item = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: time_label,
+            number: 1,
+            scheduled_at: past_rfc3339,
+            api_code: "CODE1".to_string(),
+        };
+        
+        let result = parse_time_slot(&item);
+        assert!(result.is_ok());
+        
+        let time_slot = result.unwrap();
+        
+        // Check that start time is adjusted to now + 2 minutes
+        assert!(time_slot.start_time > now);
+        let start_diff = (time_slot.start_time - now).num_seconds();
+        // Allow for a small margin of error in the test due to execution time
+        assert!(start_diff >= 115 && start_diff <= 125); // ~120 seconds (2 minutes)
+        
+        // Since both original start and end were in the past,
+        // end time should be adjusted to at least 5 minutes after new start time
+        let min_duration = time_slot.end_time - time_slot.start_time;
+        assert!(min_duration.num_minutes() >= 5);
+    }
+    
+    #[test]
+    fn test_consecutive_past_time_slots() {
+        // Test that consecutive time slots with past times still merge properly
+        let now = Utc::now();
+        
+        // First time slot: 30 minutes in the past to 15 minutes in the past
+        let past_slot = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: format!("{}-{}",
+                (now - chrono::Duration::minutes(30)).format("%Y-%m-%d %H:%M"),
+                (now - chrono::Duration::minutes(15)).format("%H:%M")
+            ),
+            number: 1,
+            scheduled_at: (now - chrono::Duration::minutes(30)).to_rfc3339(),
+            api_code: "CODE1".to_string(),
+        };
+        
+        // Second time slot: 15 minutes in the past to 15 minutes in the future
+        let current_slot = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: format!("{}-{}",
+                (now - chrono::Duration::minutes(15)).format("%Y-%m-%d %H:%M"),
+                (now + chrono::Duration::minutes(15)).format("%H:%M")
+            ),
+            number: 2,
+            scheduled_at: (now - chrono::Duration::minutes(15)).to_rfc3339(),
+            api_code: "CODE2".to_string(),
+        };
+        
+        // Parse the slots
+        let past_result = parse_time_slot(&past_slot).unwrap();
+        let current_result = parse_time_slot(&current_slot).unwrap();
+        
+        // The end time of the first slot should now equal the start time of the second
+        // because we keep original end times when adjusting past slots
+        assert_eq!(past_result.end_time, (now - chrono::Duration::minutes(15)).with_timezone(&Utc));
+        
+        // Create mergeable groups
+        let slots = vec![past_result.clone(), current_result.clone()];
+        let result = find_mergeable_groups(&slots);
+        
+        // They should merge into a single group with 2 slots
+        assert_eq!(result.len(), 1, "Should have 1 group of merged slots");
+        assert_eq!(result[0].len(), 2, "Group should contain 2 slots");
+        
+        // The order should be preserved
+        assert_eq!(result[0][0].number, past_result.number);
+        assert_eq!(result[0][1].number, current_result.number);
     }
 }

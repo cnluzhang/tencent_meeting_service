@@ -17,6 +17,13 @@
 - These slots are now correctly identified as mergeable and can be combined into single meetings
 - Improved debug logging for time range calculations
 
+### Fixed Past Time Slot Issues
+- Fixed a critical bug that prevented consecutive time slots from merging when some were in the past
+- Modified time slot adjustment to preserve original end times for past time slots
+- Only adjusts start times of past slots to current time + 2 minutes, keeping end times intact 
+- Ensures consecutive time slots remain mergeable even when the first slot was in the past
+- Added comprehensive tests for past time handling and slot merging scenarios
+
 ### Code Cleanup
 - Fixed compiler warnings in main.rs
 - Improved error handling in the error handler function
