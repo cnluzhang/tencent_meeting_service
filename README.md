@@ -273,12 +273,18 @@ The project uses a modular architecture to improve maintainability and separatio
    - Supports multiple operators with dynamic selection based on form data
    - Comprehensive mocking support for testing
 
-6. **Authentication** (`src/auth.rs`) - Authentication utilities
+6. **Time Slot Processing** (`src/services/time_slots.rs`) - Meeting time management
+   - Supports precise time parsing with minute granularity (e.g., "14:00-14:30")
+   - Handles past time slots by adjusting start times while preserving end times when possible
+   - Automatically merges consecutive time slots for efficient meeting creation
+   - Handles time zone conversions and format parsing
+
+7. **Authentication** (`src/auth.rs`) - Authentication utilities
    - HMAC-SHA256 signature generation
    - Nonce and timestamp utilities
    - Tested signature validation
    
-7. **Database** (`src/services/database.rs`) - Simple CSV-based storage
+8. **Database** (`src/services/database.rs`) - Simple CSV-based storage
    - Stores meeting records in a persistent CSV file
    - Handles record creation, retrieval, and updates
    - Provides deduplication to prevent duplicate entries
@@ -341,6 +347,7 @@ When multiple time slots are submitted in a single form:
 2. For each mergeable group:
    - If the group has multiple time slots that are contiguous and in the same room, they are merged into a single meeting
    - If the group has only one time slot, a single meeting is created for it
+   - Consecutive time slots remain mergeable even when some are in the past (start times are adjusted while preserving end times)
 3. For each created meeting, the service:
    - Books the appropriate meeting room based on form name (XA_MEETING_ROOM_ID for Xi'an forms, CD_MEETING_ROOM_ID for Chengdu forms)
    - Stores the meeting ID and room ID in the database for future reference
