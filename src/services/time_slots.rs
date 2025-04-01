@@ -96,15 +96,15 @@ pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String>
             return Err(format!("Failed to parse scheduled_at time: {}", e));
         }
     };
-    
+
     // Parse the scheduled label to determine meeting duration and original end time
     // Format expected: "2025-03-30 09:00-10:00" or similar
     let scheduled_label = &reservation.scheduled_label;
     let parts: Vec<&str> = scheduled_label.split(' ').collect();
-    
+
     // Calculate the original end time based on the label first
     let mut original_end_time = parsed_start_time + chrono::Duration::hours(1); // Default 1 hour
-    
+
     if parts.len() > 1 {
         let time_parts: Vec<&str> = parts[1].split('-').collect();
         if time_parts.len() > 1 {
@@ -114,54 +114,69 @@ pub fn parse_time_slot(reservation: &FormField1Item) -> Result<TimeSlot, String>
             // Parse full time including both hours and minutes
             let parse_time = |time_str: &str| {
                 let parts: Vec<&str> = time_str.split(':').collect();
-                let hour = parts.first().and_then(|h| h.parse::<i64>().ok()).unwrap_or(0);
-                let minute = parts.get(1).and_then(|m| m.parse::<i64>().ok()).unwrap_or(0);
+                let hour = parts
+                    .first()
+                    .and_then(|h| h.parse::<i64>().ok())
+                    .unwrap_or(0);
+                let minute = parts
+                    .get(1)
+                    .and_then(|m| m.parse::<i64>().ok())
+                    .unwrap_or(0);
                 (hour, minute)
             };
-            
+
             let (start_hour, start_min) = parse_time(start_time_str);
             let (end_hour, end_min) = parse_time(end_time_str);
-            
+
             // Calculate total minutes
             let start_total_mins = start_hour * 60 + start_min;
             let end_total_mins = end_hour * 60 + end_min;
-            
+
             let duration_mins = if end_total_mins >= start_total_mins {
                 end_total_mins - start_total_mins
             } else {
                 // Handle overnight meetings
                 (24 * 60) + end_total_mins - start_total_mins
             };
-            
-            debug!("Time range {}-{} calculated as {} minutes difference", 
-                   start_time_str, end_time_str, duration_mins);
-                   
+
+            debug!(
+                "Time range {}-{} calculated as {} minutes difference",
+                start_time_str, end_time_str, duration_mins
+            );
+
             original_end_time = parsed_start_time + chrono::Duration::minutes(duration_mins);
         }
     }
-    
-    // Check if the scheduled time is in the past, if so use current time + 2 minutes
-    // but keep the original end time to maintain slot continuity
+
+    // Check if both start and end times are in the past
     let now = Utc::now();
     let meeting_start_time;
     let meeting_end_time;
-    
-    if parsed_start_time < now {
+
+    if parsed_start_time < now && original_end_time < now {
+        // Both start and end times are in the past - return error instead of adjusting
+        error!(
+            "Both start time {} and end time {} are in the past",
+            parsed_start_time, original_end_time
+        );
+        return Err(
+            "Time slot is entirely in the past. Cannot create a meeting for past times."
+                .to_string(),
+        );
+    } else if parsed_start_time < now {
+        // Only start time is in the past, end time is in the future
         debug!(
             "Scheduled time {} is in the past, using current time + 2 minutes instead",
             parsed_start_time
         );
         meeting_start_time = now + chrono::Duration::minutes(2);
-        
-        // Important: If the original end time is also in the past, use the adjusted start time + minimum duration
-        if original_end_time < now {
-            meeting_end_time = meeting_start_time + chrono::Duration::minutes(5); // Minimum duration
-            debug!("Original end time {} is also in the past, using minimum meeting duration", original_end_time);
-        } else {
-            meeting_end_time = original_end_time; // Keep the original end time
-            debug!("Using original end time {} despite adjusted start time", meeting_end_time);
-        }
+        meeting_end_time = original_end_time; // Keep the original end time
+        debug!(
+            "Using original end time {} despite adjusted start time",
+            meeting_end_time
+        );
     } else {
+        // Both times are fine
         meeting_start_time = parsed_start_time;
         meeting_end_time = original_end_time;
     }
@@ -254,7 +269,7 @@ pub async fn create_meeting_with_time_slot(
         time_zone: Some("Asia/Shanghai".to_string()),
         guests: None,
     };
-    
+
     // Add additional debug logging
     debug!(
         "Creating meeting with timestamps: start={} ({}), end={} ({}), duration={} mins",
@@ -364,7 +379,7 @@ pub async fn create_merged_meeting(
         time_zone: Some("Asia/Shanghai".to_string()),
         guests: None,
     };
-    
+
     // Add additional debug logging
     debug!(
         "Creating merged meeting with timestamps: start={} ({}), end={} ({}), duration={} mins",

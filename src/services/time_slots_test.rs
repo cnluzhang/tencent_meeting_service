@@ -391,69 +391,57 @@ mod time_slots_tests {
         };
         
         let result = parse_time_slot(&item);
-        assert!(result.is_ok());
+        assert!(result.is_err());
         
-        let time_slot = result.unwrap();
-        
-        // Check that start time is adjusted to now + 2 minutes
-        assert!(time_slot.start_time > now);
-        let start_diff = (time_slot.start_time - now).num_seconds();
-        // Allow for a small margin of error in the test due to execution time
-        assert!(start_diff >= 115 && start_diff <= 125); // ~120 seconds (2 minutes)
-        
-        // Since both original start and end were in the past,
-        // end time should be adjusted to at least 5 minutes after new start time
-        let min_duration = time_slot.end_time - time_slot.start_time;
-        assert!(min_duration.num_minutes() >= 5);
+        // Verify error message
+        let error = result.unwrap_err();
+        assert!(error.contains("Time slot is entirely in the past"));
     }
     
     #[test]
     fn test_consecutive_past_time_slots() {
-        // Test that consecutive time slots with past times still merge properly
+        // Test that time slots with past start but future end times still work properly
         let now = Utc::now();
         
-        // First time slot: 30 minutes in the past to 15 minutes in the past
-        let past_slot = FormField1Item {
-            item_name: "Test Room".to_string(),
-            scheduled_label: format!("{}-{}",
-                (now - chrono::Duration::minutes(30)).format("%Y-%m-%d %H:%M"),
-                (now - chrono::Duration::minutes(15)).format("%H:%M")
-            ),
-            number: 1,
-            scheduled_at: (now - chrono::Duration::minutes(30)).to_rfc3339(),
-            api_code: "CODE1".to_string(),
-        };
-        
-        // Second time slot: 15 minutes in the past to 15 minutes in the future
-        let current_slot = FormField1Item {
+        // We can no longer test a completely past time slot as it will error
+        // First time slot: 15 minutes in the past to 15 minutes in the future (spans current time)
+        let span_slot = FormField1Item {
             item_name: "Test Room".to_string(),
             scheduled_label: format!("{}-{}",
                 (now - chrono::Duration::minutes(15)).format("%Y-%m-%d %H:%M"),
                 (now + chrono::Duration::minutes(15)).format("%H:%M")
             ),
-            number: 2,
+            number: 1,
             scheduled_at: (now - chrono::Duration::minutes(15)).to_rfc3339(),
+            api_code: "CODE1".to_string(),
+        };
+        
+        // Second time slot: 0 minutes in the future to 30 minutes in the future
+        let future_slot = FormField1Item {
+            item_name: "Test Room".to_string(),
+            scheduled_label: format!("{}-{}",
+                now.format("%Y-%m-%d %H:%M"),
+                (now + chrono::Duration::minutes(30)).format("%H:%M")
+            ),
+            number: 2,
+            scheduled_at: now.to_rfc3339(),
             api_code: "CODE2".to_string(),
         };
         
         // Parse the slots
-        let past_result = parse_time_slot(&past_slot).unwrap();
-        let current_result = parse_time_slot(&current_slot).unwrap();
-        
-        // The end time of the first slot should now equal the start time of the second
-        // because we keep original end times when adjusting past slots
-        assert_eq!(past_result.end_time, (now - chrono::Duration::minutes(15)).with_timezone(&Utc));
+        let span_result = parse_time_slot(&span_slot).unwrap();
+        let future_result = parse_time_slot(&future_slot).unwrap();
         
         // Create mergeable groups
-        let slots = vec![past_result.clone(), current_result.clone()];
+        let slots = vec![span_result.clone(), future_result.clone()];
         let result = find_mergeable_groups(&slots);
         
         // They should merge into a single group with 2 slots
         assert_eq!(result.len(), 1, "Should have 1 group of merged slots");
         assert_eq!(result[0].len(), 2, "Group should contain 2 slots");
         
-        // The order should be preserved
-        assert_eq!(result[0][0].number, past_result.number);
-        assert_eq!(result[0][1].number, current_result.number);
+        // The order should be preserved based on adjusted times
+        assert_eq!(result[0][0].number, span_result.number);
+        assert_eq!(result[0][1].number, future_result.number);
     }
 }

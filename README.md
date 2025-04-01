@@ -275,7 +275,8 @@ The project uses a modular architecture to improve maintainability and separatio
 
 6. **Time Slot Processing** (`src/services/time_slots.rs`) - Meeting time management
    - Supports precise time parsing with minute granularity (e.g., "14:00-14:30")
-   - Handles past time slots by adjusting start times while preserving end times when possible
+   - Returns an error if both start and end times are in the past (cannot create completely past meetings)
+   - Handles partially past time slots by adjusting start times while preserving end times
    - Automatically merges consecutive time slots for efficient meeting creation
    - Handles time zone conversions and format parsing
 

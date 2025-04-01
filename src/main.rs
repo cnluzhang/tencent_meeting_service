@@ -25,7 +25,7 @@ async fn handle_error(error: BoxError) -> (StatusCode, String) {
     {
         sentry::capture_message(&error.to_string(), sentry::Level::Error);
     }
-    
+
     if error.is::<tokio::time::error::Elapsed>() {
         (
             StatusCode::REQUEST_TIMEOUT,
@@ -46,7 +46,7 @@ async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
-        
+
     // Initialize Sentry if enabled and configured
     #[cfg(feature = "sentry")]
     let _sentry_guard = if let Ok(dsn) = env::var("SENTRY_DSN") {
@@ -55,7 +55,11 @@ async fn main() {
             dsn,
             sentry::ClientOptions {
                 release: sentry::release_name!(),
-                environment: Some(env::var("ENVIRONMENT").unwrap_or_else(|_| "development".into()).into()),
+                environment: Some(
+                    env::var("ENVIRONMENT")
+                        .unwrap_or_else(|_| "development".into())
+                        .into(),
+                ),
                 ..Default::default()
             },
         ));
@@ -111,12 +115,12 @@ async fn main() {
     } else {
         info!("No webhook authentication token provided - authentication disabled");
     }
-    
+
     // Check if running in production mode
     let is_production = env::var("ENVIRONMENT")
         .map(|val| val.to_lowercase() == "production")
         .unwrap_or(false);
-        
+
     if is_production {
         info!("Running in PRODUCTION mode - restricting available endpoints");
     } else {

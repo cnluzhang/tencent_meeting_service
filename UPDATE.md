@@ -1,5 +1,14 @@
 # UPDATE.md - Tencent Meeting Service Change Log
 
+## 2025-04-01: Time Slot Validation Improvements
+
+### Added Error Handling for Completely Past Time Slots
+- Changed behavior to return an error when both start and end times are in the past
+- Previously would adjust with a 5-minute minimum duration, now properly rejects invalid time slots
+- This prevents creation of very short meetings when both times are in the past
+- Updated tests to verify the new error condition
+- The form service already prevents this scenario, this change adds an additional layer of validation
+
 ## 2025-03-31: Time Slot Handling Improvements
 
 ### Fixed Time Slot Parsing
