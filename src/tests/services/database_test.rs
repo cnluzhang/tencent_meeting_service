@@ -1,14 +1,16 @@
+use std::path::Path;
+use chrono::Utc;
+use tempfile::tempdir;
+use std::collections::HashMap;
+    
+use crate::services::database::DatabaseService;
+use crate::models::form::{FormSubmission, FormEntry, FormField1Item};
+use crate::models::meeting::TimeSlot;
+
+/// Database test module
 #[cfg(test)]
 mod database_tests {
-    use std::fs;
-    use std::path::Path;
-    use chrono::Utc;
-    use tempfile::tempdir;
-    use std::collections::HashMap;
-    
-    use crate::services::database::DatabaseService;
-    use crate::models::form::{FormSubmission, FormEntry, FormField1Item};
-    use crate::models::meeting::TimeSlot;
+    use super::*;
     
     fn create_test_form() -> FormSubmission {
         let field_item = FormField1Item {
@@ -197,7 +199,9 @@ mod database_tests {
             "meeting123", 
             "Test Room", 
             "room123", 
-            &time_slot
+            &time_slot,
+            "Test User",
+            "user123"
         );
         
         assert!(result.is_ok());
@@ -274,8 +278,8 @@ mod database_tests {
         };
         
         // Store two meetings with the same token but different times
-        db.store_meeting_with_time_slot(&form, "meeting1", "Room A", "room1", &time_slot1).unwrap();
-        db.store_meeting_with_time_slot(&form, "meeting2", "Room B", "room2", &time_slot2).unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting1", "Room A", "room1", &time_slot1, "op1", "op1id").unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting2", "Room B", "room2", &time_slot2, "op1", "op1id").unwrap();
         
         // Find all meetings
         let retrieved = db.find_all_meetings_by_token(&form.entry.token);
@@ -320,8 +324,8 @@ mod database_tests {
         let time_slot = create_time_slot();
         
         // Store the same meeting twice
-        db.store_meeting_with_time_slot(&form, "meeting1", "Test Room", "room1", &time_slot).unwrap();
-        db.store_meeting_with_time_slot(&form, "meeting2", "Test Room", "room1", &time_slot).unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting1", "Test Room", "room1", &time_slot, "op1", "op1id").unwrap();
+        db.store_meeting_with_time_slot(&form, "meeting2", "Test Room", "room1", &time_slot, "op1", "op1id").unwrap();
         
         // Find all meetings - should only have one due to deduplication
         let retrieved = db.find_all_meetings_by_token(&form.entry.token);

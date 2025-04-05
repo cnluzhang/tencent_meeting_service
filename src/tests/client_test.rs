@@ -1,9 +1,12 @@
+use crate::client::{
+    BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, ReleaseRoomsRequest, User,
+};
+use crate::tests::common::mocks::setup_mock_client;
+
+/// Client tests module
 #[cfg(test)]
 mod client_tests {
-    use crate::client::{
-        BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, ReleaseRoomsRequest, User,
-    };
-    use crate::client_mock::setup_mock_client;
+    use super::*;
 
     #[tokio::test]
     async fn test_list_rooms() {

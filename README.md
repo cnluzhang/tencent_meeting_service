@@ -33,14 +33,9 @@ tencent_meeting_service/
     ├── lib.rs           # Library exports
     ├── auth.rs          # Authentication utilities for Tencent Meeting API
     ├── client.rs        # Tencent Meeting API client
-    ├── client_mock.rs   # Mock client for testing
-    ├── client_test.rs   # Tests for the client implementation
     ├── routes.rs        # API routes configuration
-    ├── tests.rs         # General test utilities
-    ├── integration_tests.rs # End-to-end integration tests
     ├── handlers/        # API endpoint handlers
     │   ├── api.rs       # Main API endpoints
-    │   ├── api_test.rs  # Tests for API endpoints
     │   ├── mod.rs       # Module exports
     │   └── test.rs      # Test endpoints
     ├── models/          # Data structures and types
@@ -48,13 +43,30 @@ tencent_meeting_service/
     │   ├── form.rs      # Form-related structures
     │   ├── meeting.rs   # Meeting-related structures
     │   └── mod.rs       # Module exports
-    ├── routes/          # Route organization 
-    └── services/        # Business logic
-        ├── database.rs  # CSV database operations
-        ├── database_test.rs # Tests for database operations
-        ├── mod.rs       # Module exports
-        ├── time_slots.rs # Time slot processing
-        └── time_slots_test.rs # Tests for time slot operations
+    ├── services/        # Business logic
+    │   ├── database.rs  # CSV database operations
+    │   ├── mod.rs       # Module exports
+    │   └── time_slots.rs # Time slot processing
+    └── tests/           # Centralized test directory
+        ├── mod.rs       # Test module exports
+        ├── client_test.rs # Client API tests
+        ├── common/      # Shared test utilities
+        │   ├── fixtures.rs # Test data generators
+        │   ├── mocks.rs # Mock implementations
+        │   ├── mod.rs   # Common module exports
+        │   └── test_utils.rs # Shared test utilities
+        ├── handlers/    # Handler tests
+        │   ├── api_test.rs # Tests for API handlers
+        │   └── mod.rs   # Module exports
+        ├── integration/ # Integration tests
+        │   ├── api_test.rs # API integration tests
+        │   ├── mod.rs   # Module exports
+        │   ├── webhook_test.rs # Webhook integration tests
+        │   └── workflow_test.rs # End-to-end workflow tests
+        └── services/    # Service tests
+            ├── database_test.rs # Database service tests
+            ├── mod.rs   # Module exports
+            └── time_slots_test.rs # Time slot service tests
 ```
 
 ## API Endpoints
@@ -182,14 +194,16 @@ docker compose exec dev cargo test -- --nocapture
 Run a specific test module:
 
 ```bash
-docker compose exec dev cargo test database_tests
+docker compose exec dev cargo test tests::services::database_test
 ```
 
 Run a specific group of tests:
 
 ```bash
-docker compose exec dev cargo test client_tests  # Run all client tests
-docker compose exec dev cargo test integration_tests  # Run integration tests
+docker compose exec dev cargo test tests::client_test  # Run all client tests
+docker compose exec dev cargo test tests::integration  # Run integration tests
+docker compose exec dev cargo test tests::handlers     # Run handler tests
+docker compose exec dev cargo test tests::services     # Run service tests
 ```
 
 The test suite includes:
@@ -290,6 +304,13 @@ The project uses a modular architecture to improve maintainability and separatio
    - Handles record creation, retrieval, and updates
    - Provides deduplication to prevent duplicate entries
    - Data is stored in a Docker volume for persistence
+
+9. **Test Structure** (`src/tests/`) - Organized test hierarchy
+   - Centralized test management in dedicated directory
+   - Common utilities for testing in `tests/common/`
+   - Mock implementations and fixtures for testing
+   - Tests organized by module type (handlers, services, integration)
+   - Integration tests for end-to-end workflow validation
 
 ## Form Service Integration
 

@@ -4,8 +4,26 @@ use std::sync::{Arc, Mutex};
 
 use crate::client::{
     BookRoomsRequest, CancelMeetingRequest, CreateMeetingRequest, CreateMeetingResponse,
-    MeetingInfo, MeetingRoomItem, MeetingRoomsResponse, ReleaseRoomsRequest,
+    MeetingInfo, MeetingRoomItem, MeetingRoomsResponse, ReleaseRoomsRequest, TencentMeetingClient,
 };
+
+// Using the mockall for new wrappers
+mock! {
+    pub TencentClientWrapper {}
+    
+    impl Clone for TencentClientWrapper {
+        fn clone(&self) -> Self;
+    }
+}
+
+// Implement a trait for MockTencentMeetingClient to convert it to TencentMeetingClient
+// This will allow us to use it in place of TencentMeetingClient
+impl From<MockTencentMeetingClient> for TencentMeetingClient {
+    fn from(_mock: MockTencentMeetingClient) -> Self {
+        // Create a default client - it won't actually be used because the tests use simulation mode
+        TencentMeetingClient::default()
+    }
+}
 
 // Define a mock client for the Tencent Meeting API
 mock! {

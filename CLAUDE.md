@@ -28,7 +28,32 @@
 
 ## Test Suite
 
-The project includes a comprehensive test suite covering core functionality:
+The project includes a comprehensive test suite covering core functionality, organized in a clear structure:
+
+### Test Organization 
+
+```
+src/tests/
+├── common/              # Shared test utilities
+│   ├── fixtures.rs      # Test data generators
+│   ├── mocks.rs         # Mock implementations
+│   ├── test_utils.rs    # Shared test functions
+│   └── mod.rs           # Module exports
+├── services/            # Service-level tests
+│   ├── database_test.rs # Database service tests
+│   ├── time_slots_test.rs # Time slot service tests
+│   └── mod.rs           # Module exports
+├── handlers/            # API handler tests
+│   ├── api_test.rs      # API endpoint handler tests
+│   └── mod.rs           # Module exports
+├── integration/         # End-to-end tests
+│   ├── api_test.rs      # API endpoint integration tests
+│   ├── webhook_test.rs  # Webhook functionality tests
+│   ├── workflow_test.rs # Complete workflow tests
+│   └── mod.rs           # Module exports
+├── client_test.rs       # Client tests
+└── mod.rs               # Root test module
+```
 
 ### Database Tests
 - `test_database_creation`: Tests the creation of the database file
@@ -81,11 +106,11 @@ The project includes a comprehensive test suite covering core functionality:
 
 ### Running Tests
 - Run all tests: `docker compose exec dev cargo test`
-- Run specific module: `docker compose exec dev cargo test database_tests`
+- Run specific module: `docker compose exec dev cargo test tests::services::database_test`
 - Run with output: `docker compose exec dev cargo test -- --nocapture`
 - Run a specific test: `docker compose exec dev cargo test test_simulation_mode`
-- Run integration tests only: `docker compose exec dev cargo test integration_tests`
-- Run client tests only: `docker compose exec dev cargo test client_tests`
+- Run integration tests only: `docker compose exec dev cargo test tests::integration`
+- Run client tests only: `docker compose exec dev cargo test tests::client_test`
 
 ## API Endpoints
 - `GET /health` - Health check endpoint
@@ -189,14 +214,9 @@ tencent_meeting_service/
     ├── lib.rs           # Library exports
     ├── auth.rs          # Authentication utilities for Tencent Meeting API
     ├── client.rs        # Tencent Meeting API client
-    ├── client_mock.rs   # Mock client for testing
-    ├── client_test.rs   # Tests for the client implementation
     ├── routes.rs        # API routes configuration
-    ├── tests.rs         # General test utilities
-    ├── integration_tests.rs # End-to-end integration tests
     ├── handlers/        # API endpoint handlers
     │   ├── api.rs       # Main API endpoints
-    │   ├── api_test.rs  # Tests for API endpoints
     │   ├── mod.rs       # Module exports
     │   └── test.rs      # Test endpoints
     ├── models/          # Data structures and types
@@ -204,13 +224,30 @@ tencent_meeting_service/
     │   ├── form.rs      # Form-related structures
     │   ├── meeting.rs   # Meeting-related structures
     │   └── mod.rs       # Module exports
-    ├── routes/          # Route organization 
-    └── services/        # Business logic
-        ├── database.rs  # CSV database operations
-        ├── database_test.rs # Tests for database operations
-        ├── mod.rs       # Module exports
-        ├── time_slots.rs # Time slot processing
-        └── time_slots_test.rs # Tests for time slot operations
+    ├── services/        # Business logic
+    │   ├── database.rs  # CSV database operations
+    │   ├── mod.rs       # Module exports
+    │   └── time_slots.rs # Time slot processing
+    ├── tests/           # Organized testing infrastructure
+    │   ├── common/      # Shared test utilities
+    │   │   ├── fixtures.rs # Test data generators
+    │   │   ├── mocks.rs # Mock implementations (moved from client_mock.rs)
+    │   │   ├── test_utils.rs # Shared test functions
+    │   │   └── mod.rs   # Common module exports
+    │   ├── services/    # Service tests
+    │   │   ├── database_test.rs # Database service tests
+    │   │   ├── time_slots_test.rs # Time slot tests
+    │   │   └── mod.rs   # Services module exports
+    │   ├── handlers/    # Handler tests
+    │   │   ├── api_test.rs # API handler tests
+    │   │   └── mod.rs   # Handler module exports
+    │   ├── integration/ # Integration tests
+    │   │   ├── api_test.rs # API endpoint tests
+    │   │   ├── webhook_test.rs # Webhook tests
+    │   │   ├── workflow_test.rs # End-to-end workflow tests
+    │   │   └── mod.rs   # Integration module exports
+    │   ├── client_test.rs # Client tests
+    │   └── mod.rs       # Root test module
 ```
 
 ### Module Structure

@@ -27,9 +27,6 @@ pub mod services;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-pub mod client_mock;
-
 // Re-export the main API types for ease of use
 pub use auth::TencentAuth;
 pub use client::{

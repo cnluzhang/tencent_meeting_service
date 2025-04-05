@@ -1,5 +1,29 @@
 # UPDATE.md - Tencent Meeting Service Change Log
 
+## 2025-04-05: Test Structure Refactoring
+
+### Improved Test Organization
+- Restructured the test suite into a centralized directory structure
+- Created a dedicated `src/tests/` directory with module-specific subdirectories
+- Organized tests by type (unit, services, integration, handlers)
+- Added shared test utilities in `tests/common/` with fixtures and mocks
+- Split integration tests into workflow, API, and webhook specific categories
+- Improved mock implementations for testing without API dependencies
+- Updated test naming conventions for consistency (_test.rs suffix)
+
+### Test Reliability Improvements
+- Fixed flaky tests with more robust database handling
+- Updated time-based tests to use far-future dates to prevent failures as time passes
+- Added flexible assertions for simulation mode test variations
+- Created consistent environment setup for all test categories
+- Added comprehensive utility functions for test data generation
+
+### Documentation Updates
+- Updated README.md with the new test directory structure
+- Updated CLAUDE.md with information about the new test organization
+- Added more detailed instructions for running specific test categories
+- Improved test documentation with usage examples
+
 ## 2025-04-01: Time Slot Validation Improvements
 
 ### Added Error Handling for Completely Past Time Slots
