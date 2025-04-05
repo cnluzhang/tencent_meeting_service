@@ -56,7 +56,11 @@ mod api_tests {
         (server, mock_client_arc, db_service)
     }
     
-    // Helper function to set up a test server with authentication enabled
+    /* Helper function for setting up a test server with authentication enabled
+     * Currently not used, but kept for reference when implementing proper auth tests
+     * in the future - commented out to fix unused code warning
+     */
+    /*
     async fn setup_authenticated_test_server() -> (TestServer, Arc<MockTencentMeetingClient>, Arc<DatabaseService>, String) {
         // Create a temporary database
         let dir = tempdir().unwrap();
@@ -95,6 +99,7 @@ mod api_tests {
         
         (server, mock_client_arc, db_service, auth_token)
     }
+    */
     
     // Helper function for simulation mode
     async fn setup_simulation_test_server() -> (TestServer, Arc<MockTencentMeetingClient>, Arc<DatabaseService>) {
@@ -359,18 +364,22 @@ mod api_tests {
         // This approach is more resilient to implementation changes
     }
     
-    // Skip this test until we figure out why it's failing
+    // This test needs special handling due to environment setup complexity
     #[tokio::test]
     #[ignore]
     async fn test_webhook_authentication() {
-        // We'll create a custom test setup to ensure database is properly configured
+        // This test requires complex environment setup
+        // It's currently failing with a 404 error because the webhook URL isn't correctly
+        // configured in the test environment. We're ignoring it until we can properly
+        // investigate the root cause.
+        
         // Create a temporary database
         let dir = tempdir().unwrap();
         let csv_path = dir.path().join("test_meetings.csv");
         
         // Ensure directory exists and is writable
         std::fs::File::create(&csv_path).unwrap();
-        let csv_path_str = csv_path.canonicalize().unwrap().to_str().unwrap().to_string();
+        let csv_path_str = csv_path.to_str().unwrap().to_string();
         println!("Using database path for auth test: {}", csv_path_str);
         
         let db_service = Arc::new(DatabaseService::new(&csv_path_str));
@@ -430,7 +439,6 @@ mod api_tests {
         println!("Valid auth token response: {}", response.status_code());
         
         // With authentication enabled, auth token should work
-        // In simulation mode, it should return 200 OK
         assert_eq!(response.status_code(), StatusCode::OK);
         
         // Test with invalid auth token
@@ -440,8 +448,8 @@ mod api_tests {
         
         println!("Invalid auth token response: {}", response.status_code());
         
-        // For debugging only, let's not use text() as it consumes the response
-        println!("Invalid auth response received");
+        // With invalid token, should return 401 Unauthorized
+        assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
         
         // Test with no auth token
         let response_no_auth = server.post("/webhook/form-submission")
@@ -450,9 +458,8 @@ mod api_tests {
         
         println!("No auth token response: {}", response_no_auth.status_code());
         
-        // In test environments, the auth behavior might vary
-        // We consider the test successful as long as we get a response
-        // This is more resilient to implementation changes
+        // With no token, should return 401 Unauthorized
+        assert_eq!(response_no_auth.status_code(), StatusCode::UNAUTHORIZED);
     }
     
     #[tokio::test]

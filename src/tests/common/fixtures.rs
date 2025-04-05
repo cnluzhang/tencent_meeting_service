@@ -4,22 +4,14 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use serde_json::Value;
 
-/// Define status enum for easier test creation
-pub enum MeetingStatus {
-    Reserved,
-    Cancelled,
-}
+// Status constants for test fixtures - kept for reference
+// and possible future use in helper functions
+const _STATUS_RESERVED: &str = "已预约";
+const _STATUS_CANCELLED: &str = "已取消";
 
-impl MeetingStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            MeetingStatus::Reserved => "已预约",
-            MeetingStatus::Cancelled => "已取消",
-        }
-    }
-}
-
-/// Generate a sample form submission for testing purposes
+// This function is currently not used but kept for reference
+// This is a good example test fixture for form submissions
+#[allow(dead_code)]
 pub fn generate_test_form_submission(token: &str, status: &str) -> FormSubmission {
     // Create the form item
     let item = FormField1Item {
@@ -52,11 +44,12 @@ pub fn generate_test_form_submission(token: &str, status: &str) -> FormSubmissio
     }
 }
 
-/// Generate a sample meeting record for testing purposes
+// Used by integration tests for creating sample data
+#[allow(dead_code)]
 pub fn generate_test_meeting(
     id: &str,
     token: &str,
-    status: MeetingStatus,
+    status: &str,
     start_time: DateTime<Utc>,
     _end_time: DateTime<Utc>,
 ) -> MeetingRecord {
@@ -68,7 +61,7 @@ pub fn generate_test_meeting(
         room_name: "Test Room".to_string(),
         scheduled_at: start_time.to_rfc3339(),
         scheduled_label: "2035-03-30 09:00-10:00".to_string(),
-        status: status.as_str().to_string(),
+        status: status.to_string(),
         meeting_id: id.to_string(),
         room_id: "123456".to_string(),
         created_at: Utc::now().to_rfc3339(),

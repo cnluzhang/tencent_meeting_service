@@ -58,8 +58,8 @@ mod database_tests {
         let csv_path = dir.path().join("test_meetings.csv");
         let csv_path_str = csv_path.to_str().unwrap();
         
-        // Create database service
-        let db = DatabaseService::new(csv_path_str);
+        // Create database service - just creating it is enough to test creation
+        DatabaseService::new(csv_path_str);
         
         // Check that the CSV file was created
         assert!(Path::new(csv_path_str).exists());
@@ -74,7 +74,7 @@ mod database_tests {
         let csv_path = dir.path().join("test_meetings.csv");
         let csv_path_str = csv_path.to_str().unwrap();
         
-        // Create database service
+        // Create database service and store in variable for use below
         let db = DatabaseService::new(csv_path_str);
         
         // Create test data
@@ -117,7 +117,7 @@ mod database_tests {
         let csv_path = dir.path().join("test_meetings.csv");
         let csv_path_str = csv_path.to_str().unwrap();
         
-        // Create database service
+        // Create database service and store in variable for use below
         let db = DatabaseService::new(csv_path_str);
         
         // Create test data
@@ -186,7 +186,7 @@ mod database_tests {
         let csv_path = dir.path().join("test_meetings.csv");
         let csv_path_str = csv_path.to_str().unwrap();
         
-        // Create database service
+        // Create database service and store in variable for use below
         let db = DatabaseService::new(csv_path_str);
         
         // Create test data
@@ -232,7 +232,7 @@ mod database_tests {
         let csv_path = dir.path().join("test_meetings.csv");
         let csv_path_str = csv_path.to_str().unwrap();
         
-        // Create database service
+        // Create database service and store in variable for use below
         let db = DatabaseService::new(csv_path_str);
         
         // Create test data
@@ -316,7 +316,7 @@ mod database_tests {
         let csv_path = dir.path().join("test_meetings.csv");
         let csv_path_str = csv_path.to_str().unwrap();
         
-        // Create database service
+        // Create database service and store in variable for use below
         let db = DatabaseService::new(csv_path_str);
         
         // Create test data

@@ -120,10 +120,13 @@ impl MockDataStore {
         meetings.insert(meeting_id, meeting_info);
     }
 
-    pub fn get_meeting(&self, meeting_id: &str) -> Option<MeetingInfo> {
+    /*
+    // Private helper method - currently not used but kept for possible future use
+    fn get_meeting(&self, meeting_id: &str) -> Option<MeetingInfo> {
         let meetings = self.meetings.lock().unwrap();
         meetings.get(meeting_id).cloned()
     }
+    */
 
     pub fn cancel_meeting(&self, meeting_id: &str) -> bool {
         // Just remove the meeting from our store to simulate cancellation
